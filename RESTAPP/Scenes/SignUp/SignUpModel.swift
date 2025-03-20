@@ -2,21 +2,39 @@
 //  SignUpModel.swift
 //  RESTAPP
 //
-//  Created by Артём on 31.03.2025.
+//  Created by Артём on 20.03.2025.
 //
 
-import Foundation
+import UIKit
 
+// MARK: - SignUp Models
 enum SignUp {
-    enum Response {
-        
+    enum Register {
+        struct Request {
+            let fullName: String
+            let email: String
+            let password: String
+            let confirmPassword: String
+        }
+        struct Response {
+            let success: Bool
+            let errorMessage: String?
+        }
+        struct ViewModel {
+            let isSuccess: Bool
+            let message: String
+        }
     }
-    
-    enum Request {
-        
-    }
-    
-    enum ViewModel {
-        
+    enum StaticContent {
+        struct Response {
+            let title: String
+            let description: String
+            let picture: UIImage
+        }
+        struct ViewModel {
+            let title: String
+            let description: String
+            let picture: UIImage
+        }
     }
 }

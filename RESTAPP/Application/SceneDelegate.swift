@@ -6,28 +6,51 @@
 //
 
 import UIKit
+import Firebase
+import FirebaseAuth
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+    
+    // MARK: - Properties
+    
     var window: UIWindow?
-    var coordinator: AppCoordinator?
-
-    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
-        guard let windowScene = (scene as? UIWindowScene) else { return }
-        let window = UIWindow(windowScene: windowScene)
-        coordinator = AppCoordinator(window: window)
-        coordinator?.start()
+    
+    // MARK: - UIScene Lifecycle
+    
+    func scene(_ scene: UIScene,
+               willConnectTo session: UISceneSession,
+               options connectionOptions: UIScene.ConnectionOptions) {
+        FirebaseApp.configure()
+        
+        guard let windowScene = scene as? UIWindowScene else { return }
+        window = UIWindow(windowScene: windowScene)
+        
+        window?.rootViewController = createRootViewController()
+        window?.makeKeyAndVisible()
     }
     
-    func sceneDidDisconnect(_ scene: UIScene) { }
+    // MARK: - Helper Methods
     
-    func sceneDidBecomeActive(_ scene: UIScene) { }
+    private func createRootViewController() -> UIViewController {
+        if UserDefaults.standard.bool(forKey: "isLoggedIn"),
+           Auth.auth().currentUser != nil {
+            let mainVC = MainAssembly.build()
+            return UINavigationController(rootViewController: mainVC)
+        } else {
+            let loginVC = LoginAssembly.build()
+            return UINavigationController(rootViewController: loginVC)
+        }
+    }
     
-    func sceneWillResignActive(_ scene: UIScene) { }
+    // MARK: - SceneDelegate Methods
     
-    func sceneWillEnterForeground(_ scene: UIScene) { }
+    func sceneDidDisconnect(_ scene: UIScene) {}
     
-    func sceneDidEnterBackground(_ scene: UIScene) { }
+    func sceneDidBecomeActive(_ scene: UIScene) {}
     
+    func sceneWillResignActive(_ scene: UIScene) {}
     
+    func sceneWillEnterForeground(_ scene: UIScene) {}
+    
+    func sceneDidEnterBackground(_ scene: UIScene) {}
 }
-
