@@ -41,7 +41,7 @@ struct Order: Codable, Hashable {
     let id: String
     let date: Date
     let items: [String]
-    let total: Double
+    let total: Int
 }
 
 struct OrderViewModel {

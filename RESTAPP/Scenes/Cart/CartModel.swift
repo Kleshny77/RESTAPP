@@ -1,23 +1,12 @@
-//
-//  CartModel.swift
-//  RESTAPP
-//
-//  Created by Артём on 01.04.2025.
-//
-
 import UIKit
-
-// MARK: - Cart Model
 
 enum Cart {
     enum Load {
         struct Request {}
-        
         struct Response {
             let items: [(meal: Meal, count: Int)]
-            let total: Double
+            let total: Int
         }
-        
         struct ViewModel {
             let items: [CartItemViewModel]
             let totalText: String
@@ -25,10 +14,11 @@ enum Cart {
     }
 }
 
-// MARK: - CartItemViewModel
-
 struct CartItemViewModel {
+    let meal: Meal
+    let imageURL: String
     let name: String
-    let countText: String
-    let totalPriceText: String
+    let weightText: String
+    let count: Int
+    let priceText: String
 }

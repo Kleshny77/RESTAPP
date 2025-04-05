@@ -5,247 +5,312 @@
 //  Created by Артём on 28.03.2025.
 //
 
-//
-//  MainViewController.swift
-//  RESTAPP
-//
-//  Created by Артём on 28.03.2025.
-//
-
 import UIKit
-import SDWebImage
+//import SDWebImage
 
-// MARK: - Display Logic
+// MARK: – DisplayLogic
 protocol MainDisplayLogic: AnyObject {
     func displayFood(viewModel: Main.LoadFood.ViewModel)
 }
 
-// MARK: - MainViewController
+private struct Section: Hashable {
+    let id = UUID()
+    let title: String
+    let meals: [Meal]
+}
+private enum Item: Hashable {
+    case meal(Meal)
+}
+
 final class MainViewController: UIViewController, MainDisplayLogic {
-    
-    // MARK: - Properties
-    private var domainCategories: [FoodCategory] = []
-    private var categories: [FoodCategoryViewModel] = []
-    var interactor: MainBusinessLogic?
-    var router: (NSObjectProtocol & MainRoutingLogic)?
-    
-    // MARK: - UI Elements
-    private let canteenLabel: UILabel = {
-        let label = UILabel()
-        label.font = .boldSystemFont(ofSize: 20)
-        return label
-    }()
-    
-    private let profileButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setImage(UIImage(systemName: "person.circle"), for: .normal)
-        button.addTarget(nil, action: #selector(profileTapped), for: .touchUpInside)
-        return button
-    }()
-    
-    private let scrollView: UIScrollView = {
-        let sv = UIScrollView()
-        sv.showsVerticalScrollIndicator = false
-        return sv
-    }()
-    
-    private let stackView: UIStackView = {
-        let sv = UIStackView()
-        sv.axis = .vertical
-        sv.spacing = 24
-        return sv
-    }()
-    
-    private let cartButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setImage(UIImage(systemName: "cart.fill"), for: .normal)
-        button.backgroundColor = UIColor(hex: "FF9700")
-        button.tintColor = .white
-        button.layer.cornerRadius = 30
-        button.addTarget(nil, action: #selector(cartTapped), for: .touchUpInside)
-        return button
-    }()
-    
-    // MARK: - Initializer
-    init(interactor: MainBusinessLogic, router: (NSObjectProtocol & MainRoutingLogic)) {
+
+    // MARK: DI
+    private let interactor: MainBusinessLogic
+    private let router: (NSObjectProtocol & MainRoutingLogic)
+
+    init(interactor: MainBusinessLogic,
+         router: (NSObjectProtocol & MainRoutingLogic)) {
         self.interactor = interactor
         self.router = router
         super.init(nibName: nil, bundle: nil)
     }
-    
     required init?(coder: NSCoder) { fatalError() }
-    
-    // MARK: - Life Cycle
+
+    // MARK: UI
+    private var collectionView: UICollectionView!
+    private var dataSource: UICollectionViewDiffableDataSource<Section, Item>!
+    private var cartButtonWidthConstraint: NSLayoutConstraint?
+
+    private let cartButton: BouncyButton = {
+        let b = BouncyButton(type: .system)
+        b.translatesAutoresizingMaskIntoConstraints = false
+        b.setImage(UIImage(systemName: "cart.fill"), for: .normal)
+        b.tintColor = .white
+        b.backgroundColor = UIColor(hex: "FF9700")
+        b.layer.cornerRadius = 30
+        return b
+    }()
+
+    // MARK: State
+    private var sections: [Section] = []
+
+    // MARK: Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
-        configureUI()
-        interactor?.loadFood(request: .init())
-    }
-    
-    // MARK: - UI Configuration
-    private func configureUI() {
         view.backgroundColor = .systemBackground
-        setupCanteenPanel()
-        setupScrollView()
-        setupStackView()
-        setupCartButton()
+        configureNavBar()
+        makeCollectionView()
+        makeCartButton()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(cartDidChange),
+            name: .cartDidChange,
+            object: nil
+        )
+
+        interactor.loadFood(request: .init())
     }
-    
-    // MARK: - Setup Canteen Panel
-    private func setupCanteenPanel() {
-        view.addSubview(canteenLabel)
-        view.addSubview(profileButton)
-        canteenLabel.pinTop(to: view.safeAreaLayoutGuide, 16)
-        canteenLabel.pinLeft(to: view, 20)
-        profileButton.pinCenterY(to: canteenLabel)
-        profileButton.pinRight(to: view, 20)
-        canteenLabel.text = "Столовая №1"
+
+    // MARK: – NavBar + Shadow
+    private func configureNavBar() {
+        navigationItem.title = "Столовая №1"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "person.circle"),
+            style: .plain,
+            target: self,
+            action: #selector(profileTapped)
+        )
+
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = .systemBackground
+        appearance.shadowColor = UIColor.black.withAlphaComponent(0.26)
+        
+        navigationController?.navigationBar.standardAppearance = appearance
+        navigationController?.navigationBar.scrollEdgeAppearance = appearance
+        navigationController?.navigationBar.compactAppearance = appearance
+        navigationController?.navigationBar.tintColor = .black
     }
-    
-    // MARK: - Setup ScrollView
-    private func setupScrollView() {
-        view.addSubview(scrollView)
-        scrollView.pinTop(to: canteenLabel.bottomAnchor, 16)
-        scrollView.pinLeft(to: view, 0)
-        scrollView.pinRight(to: view, 0)
-        scrollView.pinBottom(to: view, 0)
+
+
+
+    // MARK: – CollectionView
+    private func makeCollectionView() {
+        collectionView = UICollectionView(frame: .zero, collectionViewLayout: makeLayout())
+        collectionView.backgroundColor = .systemBackground
+        collectionView.delegate = self
+        collectionView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(collectionView)
+        
+        collectionView.canCancelContentTouches = false
+        collectionView.pinHorizontal(to: view)
+        collectionView.pinBottom(to: view)
+        collectionView.pinTop(to: view.safeAreaLayoutGuide)
+
+        collectionView.register(MainMealCell.self,
+                                forCellWithReuseIdentifier: MainMealCell.reuseID)
+        collectionView.register(SectionHeader.self,
+                                forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
+                                withReuseIdentifier: SectionHeader.reuseID)
+
+        dataSource = .init(collectionView: collectionView) { cv, indexPath, item in
+            let cell = cv.dequeueReusableCell(withReuseIdentifier: MainMealCell.reuseID, for: indexPath) as! MainMealCell
+            if case let .meal(meal) = item { cell.configure(with: meal) }
+            return cell
+        }
+
+        dataSource.supplementaryViewProvider = { [weak self] cv, kind, indexPath in
+            guard kind == UICollectionView.elementKindSectionHeader,
+                  let header = cv.dequeueReusableSupplementaryView(
+                    ofKind: kind,
+                    withReuseIdentifier: SectionHeader.reuseID,
+                    for: indexPath) as? SectionHeader,
+                  let section = self?.sections[indexPath.section]
+            else { return nil }
+            header.title = section.title
+            return header
+        }
     }
-    
-    // MARK: - Setup StackView
-    private func setupStackView() {
-        scrollView.addSubview(stackView)
-        stackView.pinTop(to: scrollView.topAnchor, 0)
-        stackView.pinLeft(to: scrollView, 16)
-        stackView.pinRight(to: scrollView, 16)
-        stackView.pinBottom(to: scrollView.bottomAnchor, 0)
-        stackView.pinWidth(to: scrollView.widthAnchor, -32)
+
+    private func makeLayout() -> UICollectionViewLayout {
+        let itemSize = NSCollectionLayoutSize(widthDimension: .absolute(140),
+                                              heightDimension: .absolute(215))
+        let item = NSCollectionLayoutItem(layoutSize: itemSize)
+        let group = NSCollectionLayoutGroup.horizontal(layoutSize: itemSize, subitems: [item])
+
+        let section = NSCollectionLayoutSection(group: group)
+        section.orthogonalScrollingBehavior = .continuous
+        section.interGroupSpacing = 12
+        section.contentInsets = .init(top: 10, leading: 16, bottom: 24, trailing: 16)
+
+        let headerSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                                heightDimension: .estimated(44))
+        let header = NSCollectionLayoutBoundarySupplementaryItem(
+            layoutSize: headerSize,
+            elementKind: UICollectionView.elementKindSectionHeader,
+            alignment: .topLeading)
+        header.pinToVisibleBounds = false
+        header.contentInsets = .init(top: 0, leading: 16, bottom: 0, trailing: 16)
+
+        section.boundarySupplementaryItems = [header]
+        let config = UICollectionViewCompositionalLayoutConfiguration()
+        return UICollectionViewCompositionalLayout(section: section, configuration: config)
     }
-    
-    // MARK: - Setup Cart Button
-    private func setupCartButton() {
+
+    // MARK: – Cart FAB
+    private func makeCartButton() {
         view.addSubview(cartButton)
-        cartButton.pinRight(to: view, 24)
-        cartButton.pinBottom(to: view.safeAreaLayoutGuide, 24)
-        cartButton.setWidth(60)
+        cartButton.pinBottom(to: view.safeAreaLayoutGuide)
+        cartButton.pinRight(to: view, 12)
+        cartButtonWidthConstraint = cartButton.setWidth(mode: .equal, 60)
         cartButton.setHeight(60)
+        cartButton.addTarget(self, action: #selector(cartTapped), for: .touchUpInside)
     }
-    
-    // MARK: - Display Logic
-    func displayFood(viewModel: Main.LoadFood.ViewModel) {
-        self.categories = viewModel.categories
-        self.domainCategories = viewModel.domainCategories
-        renderCategories()
-    }
-    
-    // MARK: - Render Categories
-    private func renderCategories() {
-        stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        for (catIndex, categoryVM) in categories.enumerated() {
-            let titleLabel = UILabel()
-            titleLabel.font = .boldSystemFont(ofSize: 18)
-            titleLabel.text = categoryVM.title
-            
-            let scroll = UIScrollView()
-            scroll.showsHorizontalScrollIndicator = false
-            scroll.setHeight(200)
-            scroll.alwaysBounceVertical = false
-            scroll.bounces = false
-            
-            let hStack = UIStackView()
-            hStack.axis = .horizontal
-            hStack.spacing = 16
-            hStack.translatesAutoresizingMaskIntoConstraints = false
-            
-            let domainCat = domainCategories[catIndex]
-            for (mealIndex, mealVM) in categoryVM.meals.enumerated() {
-                let domainMeal = domainCat.meals[mealIndex]
-                let card = createMealCard(mealVM: mealVM, domainMeal: domainMeal)
-                hStack.addArrangedSubview(card)
+
+    @objc private func cartDidChange() {
+        for ip in collectionView.indexPathsForVisibleItems {
+            guard let cell = collectionView.cellForItem(at: ip) as? MainMealCell else { continue }
+            let meal = sections[ip.section].meals[ip.item]
+            let newCount = CartService.shared.getAllItems().first { $0.meal == meal }?.count ?? 0
+            if newCount > 0 {
+                cell.updateCounter(to: newCount)
+            } else {
+                cell.resetToPriceButton()
             }
-            
-            scroll.addSubview(hStack)
-            hStack.pinTop(to: scroll, 8)
-            hStack.pinBottom(to: scroll, 8)
-            hStack.pinLeft(to: scroll, 8)
-            hStack.pinRight(to: scroll, 8)
-            hStack.pinHeight(to: scroll, 1.0)
-            
-            let container = UIStackView(arrangedSubviews: [titleLabel, scroll])
-            container.axis = .vertical
-            container.spacing = 8
-            
-            stackView.addArrangedSubview(container)
+        }
+
+        let items = CartService.shared.getAllItems()
+        let totalCount = items.reduce(0) { $0 + $1.count }
+        let totalPrice = items.reduce(0) { $0 + $1.count * $1.meal.price }
+
+        if totalCount > 0 {
+            activateCartButton(count: totalCount, price: totalPrice)
+        } else {
+            deactivateCartButton()
         }
     }
-    
-    // MARK: - Create Meal Card
-    private var mealByView: [UIView: Meal] = [:]
-    
-    private func createMealCard(mealVM: MealViewModel, domainMeal: Meal) -> UIView {
-        let card = UIView()
-        card.backgroundColor = .secondarySystemBackground
-        card.layer.cornerRadius = 10
-        card.setWidth(140)
-        
-        let mealImageView = UIImageView()
-        mealImageView.contentMode = .scaleAspectFill
-        mealImageView.clipsToBounds = true
-        mealImageView.layer.cornerRadius = 10
-        mealImageView.setHeight(80)
-        if let url = URL(string: mealVM.imageName) {
-            mealImageView.sd_setImage(with: url, placeholderImage: UIImage(named: "placeholder"))
+
+    private func activateCartButton(count: Int, price: Int) {
+        cartButton.setImage(nil, for: .normal)
+        cartButton.setTitle("\(price) ₽", for: .normal)
+        cartButton.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
+        cartButtonWidthConstraint?.constant = 100
+
+        UIView.animate(withDuration: 0.3,
+                       delay: 0,
+                       usingSpringWithDamping: 0.7,
+                       initialSpringVelocity: 0.8,
+                       options: [.allowUserInteraction]) {
+            self.view.layoutIfNeeded()
         }
-        
-        let nameLabel = UILabel()
-        nameLabel.font = .systemFont(ofSize: 14)
-        nameLabel.numberOfLines = 2
-        nameLabel.text = mealVM.name
-        
-        let priceLabel = UILabel()
-        priceLabel.font = .boldSystemFont(ofSize: 14)
-        priceLabel.textColor = .systemGreen
-        priceLabel.text = mealVM.priceText
-        
-        var config = UIButton.Configuration.filled()
-        config.title = "+"
-        config.baseBackgroundColor = UIColor(hex: "FF9700")
-        config.baseForegroundColor = .white
-        config.cornerStyle = .capsule
-        let plusButton = UIButton(configuration: config)
-        plusButton.addAction(UIAction(handler: { _ in
-            CartService.shared.add(meal: domainMeal)
-        }), for: .touchUpInside)
-        
-        let vStack = UIStackView(arrangedSubviews: [mealImageView, nameLabel, priceLabel, plusButton])
-        vStack.axis = .vertical
-        vStack.spacing = 8
-        vStack.translatesAutoresizingMaskIntoConstraints = false
-        
-        card.addSubview(vStack)
-        vStack.pinTop(to: card, 8)
-        vStack.pinLeft(to: card, 8)
-        vStack.pinRight(to: card, 8)
-        vStack.pinBottom(to: card, 8)
-        
-        let tap = UITapGestureRecognizer(target: self, action: #selector(mealCardTapped(_:)))
-        card.addGestureRecognizer(tap)
-        card.isUserInteractionEnabled = true
-        mealByView[card] = domainMeal
-        
-        return card
+    }
+
+    private func deactivateCartButton() {
+        cartButton.setTitle(nil, for: .normal)
+        cartButton.setImage(UIImage(systemName: "cart.fill"), for: .normal)
+        cartButtonWidthConstraint?.constant = 60
+
+        UIView.animate(withDuration: 0.3,
+                       delay: 0,
+                       usingSpringWithDamping: 0.7,
+                       initialSpringVelocity: 0.8,
+                       options: [.allowUserInteraction]) {
+            self.view.layoutIfNeeded()
+        }
+    }
+
+    // MARK: – DisplayLogic
+    func displayFood(viewModel: Main.LoadFood.ViewModel) {
+        sections = zip(viewModel.categories, viewModel.domainCategories).map { vm, domain in
+            Section(title: vm.title, meals: domain.meals)
+        }
+
+        var snap = NSDiffableDataSourceSnapshot<Section, Item>()
+        for sec in sections {
+            snap.appendSections([sec])
+            snap.appendItems(sec.meals.map(Item.meal))
+        }
+        dataSource.apply(snap, animatingDifferences: true)
+    }
+}
+
+// MARK: – UICollectionViewDelegate
+extension MainViewController: UICollectionViewDelegate {
+    func collectionView(_ cv: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        let meal = sections[indexPath.section].meals[indexPath.item]
+        router.routeToMealDetail(meal: meal)
+    }
+}
+
+// MARK: – Actions
+@objc private extension MainViewController {
+    func cartTapped()    { router.routeToCart() }
+    func profileTapped() { router.routeToProfile() }
+}
+
+final class SectionHeader: UICollectionReusableView {
+    
+    static let reuseID = "SectionHeader"
+
+    private let backgroundContainer: UIView = {
+        let v = UIView()
+        v.backgroundColor = UIColor.systemBackground // <-- любой фон
+        return v
+    }()
+
+    private let label: UILabel = {
+        let l = UILabel()
+        l.font = .systemFont(ofSize: 20, weight: .medium)
+        return l
+    }()
+    
+    var title: String? {
+        get { label.text }
+        set { label.text = newValue }
     }
     
-    // MARK: - Actions
-    @objc private func mealCardTapped(_ gesture: UITapGestureRecognizer) {
-        guard let view = gesture.view, let meal = mealByView[view] else { return }
-        router?.routeToMealDetail(meal: meal)
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+
+        addSubview(backgroundContainer)
+        backgroundContainer.pinVertical(to: self)
+        backgroundContainer.pinHorizontal(to: self, -32)
+
+        backgroundContainer.addSubview(label)
+        label.pinTop(to: backgroundContainer, 2)
+        label.pinBottom(to: backgroundContainer)
+        label.pinHorizontal(to: backgroundContainer, 20)
     }
     
-    @objc private func cartTapped() {
-        router?.routeToCart()
+    required init?(coder: NSCoder) { fatalError() }
+}
+
+extension UIImage {
+    convenience init?(color: UIColor, size: CGSize = CGSize(width: 1, height: 1)) {
+        let rect = CGRect(origin: .zero, size: size)
+        UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
+        color.setFill()
+        UIRectFill(rect)
+        let image = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        guard let cgImage = image?.cgImage else { return nil }
+        self.init(cgImage: cgImage)
     }
-    
-    @objc private func profileTapped() {
-        router?.routeToProfile()
+}
+
+final class BouncyButton: UIButton {
+    override var isHighlighted: Bool {
+        didSet { animate(isHighlighted) }
+    }
+
+    private func animate(_ pressed: Bool) {
+        UIView.animate(withDuration: 0.4,
+                       delay: 0,
+                       options: [.curveEaseOut, .allowUserInteraction],
+                       animations: {
+            self.transform = pressed ? CGAffineTransform(scaleX: 0.94, y: 0.94) : .identity
+            self.alpha = pressed ? 0.8 : 1.0
+        })
     }
 }

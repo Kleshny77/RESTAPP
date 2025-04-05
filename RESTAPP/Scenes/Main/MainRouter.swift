@@ -23,7 +23,7 @@ final class MainRouter: NSObject, MainRoutingLogic, MainDataPassing {
     func routeToMealDetail(meal: Meal) {
         let detailVC = MealDetailViewController(meal: meal)
         if let sheet = detailVC.sheetPresentationController {
-            sheet.detents = [.medium(), .large()]
+            sheet.detents = [.medium()]
             sheet.prefersGrabberVisible = true
         }
         viewController?.present(detailVC, animated: true)
@@ -36,10 +36,12 @@ final class MainRouter: NSObject, MainRoutingLogic, MainDataPassing {
     
     func routeToCart() {
         let cartVC = CartAssembly.build()
+        cartVC.modalPresentationStyle = .pageSheet
         if let sheet = cartVC.sheetPresentationController {
-            sheet.detents = [.medium(), .large()]
+            sheet.detents = [.large()]
             sheet.prefersGrabberVisible = true
         }
+        
         viewController?.present(cartVC, animated: true)
     }
 }

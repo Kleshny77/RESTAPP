@@ -31,7 +31,7 @@ struct Meal: Codable, Hashable {
     let id: String
     let name: String
     let imageURL: String
-    let price: Double
+    let price: Int
     let description: String
     let weight: Int
 }

@@ -1,38 +1,25 @@
-//
-//  CartPresenter.swift
-//  RESTAPP
-//
-//  Created by Артём on 01.04.2025.
-//
-
 import UIKit
-
-// MARK: - CartPresentationLogic
 
 protocol CartPresentationLogic {
     func presentCart(response: Cart.Load.Response)
 }
 
-// MARK: - CartPresenter
-
 final class CartPresenter: CartPresentationLogic {
-    
-    // MARK: - Properties
-    
     weak var viewController: CartDisplayLogic?
-    
-    // MARK: - Presentation Logic
     
     func presentCart(response: Cart.Load.Response) {
         let items = response.items.map {
             CartItemViewModel(
+                meal: $0.meal,
+                imageURL: $0.meal.imageURL,
                 name: $0.meal.name,
-                countText: "x\($0.count)",
-                totalPriceText: "\($0.meal.price * Double($0.count)) ₽"
+                weightText: "\($0.meal.weight) г",
+                count: $0.count,
+                priceText: "\($0.meal.price * $0.count) ₽"
             )
         }
-        let totalText = "Итого: \(Int(response.total)) ₽"
-        let viewModel = Cart.Load.ViewModel(items: items, totalText: totalText)
-        viewController?.displayCart(viewModel: viewModel)
+        let totalText = "Итого: \(Int(response.total)) ₽"
+        let vm = Cart.Load.ViewModel(items: items, totalText: totalText)
+        viewController?.displayCart(viewModel: vm)
     }
 }

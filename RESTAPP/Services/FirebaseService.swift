@@ -76,7 +76,7 @@ final class FirebaseService {
             let mealId = mealData["id"] as? String,
             let mealName = mealData["name"] as? String,
             let mealImage = mealData["imageURL"] as? String,
-            let mealPrice = mealData["price"] as? Double,
+            let mealPrice = mealData["price"] as? Int,
             let mealDesc = mealData["description"] as? String,
             let mealWeight = mealData["weight"] as? Int
         else {

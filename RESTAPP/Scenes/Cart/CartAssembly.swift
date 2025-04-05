@@ -1,13 +1,4 @@
-//
-//  CartAssembly.swift
-//  RESTAPP
-//
-//  Created by Артём on 01.04.2025.
-//
-
 import UIKit
-
-// MARK: - Cart Assembly
 
 enum CartAssembly {
     static func build() -> UIViewController {
