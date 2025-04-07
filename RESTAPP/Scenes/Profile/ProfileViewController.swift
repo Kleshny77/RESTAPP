@@ -10,48 +10,37 @@ import UIKit
 // MARK: - ProfileDisplayLogic
 
 protocol ProfileDisplayLogic: AnyObject {
-    func displayUser(viewModel: Profile.LoadUser.ViewModel)
-    func displayOrders(viewModel: Profile.LoadOrders.ViewModel)
-    func displayLogout()
+    func displayProfile(viewModel: Profile.LoadProfile.ViewModel)
+    func displayLogout(viewModel: Profile.Logout.ViewModel)
 }
 
 // MARK: - ProfileViewController
 
-final class ProfileViewController: UIViewController, ProfileDisplayLogic {
+final class ProfileViewController: UIViewController {
 
     // MARK: Properties
 
     private let interactor: ProfileBusinessLogic
     private let router: ProfileRoutingLogic
     
-    private let nameLabel: UILabel = {
-        let label = UILabel()
-        label.font = .boldSystemFont(ofSize: 24)
-        label.textAlignment = .center
-        return label
-    }()
+    private var orders: [OrderCellViewModel] = []
+    private var userName: String = ""
+    private var userEmail: String = ""
     
-    private let ordersTableView: UITableView = {
-        let tv = UITableView()
-        tv.register(UITableViewCell.self, forCellReuseIdentifier: "OrderCell")
-        return tv
-    }()
-    
-    private let logoutButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setTitle("Выйти из аккаунта", for: .normal)
-        button.setTitleColor(.white, for: .normal)
-        button.backgroundColor = .systemRed
-        button.layer.cornerRadius = 8
-        return button
-    }()
-    
-    private var orders: [OrderViewModel] = []
+    // MARK: - UI
 
-    // MARK: - Init
+    private lazy var tableView: UITableView = {
+        let table = UITableView(frame: .zero, style: .insetGrouped)
+        table.register(UITableViewCell.self, forCellReuseIdentifier: "OrderCell")
+        table.delegate = self
+        table.dataSource = self
+        table.translatesAutoresizingMaskIntoConstraints = false
+        return table
+    }()
 
-    init(interactor: ProfileBusinessLogic,
-         router: ProfileRoutingLogic) {
+    // MARK: - Lifecycle
+
+    init(interactor: ProfileBusinessLogic, router: ProfileRoutingLogic) {
         self.interactor = interactor
         self.router = router
         super.init(nibName: nil, bundle: nil)
@@ -62,83 +51,129 @@ final class ProfileViewController: UIViewController, ProfileDisplayLogic {
         fatalError("init(coder:) has not been implemented")
     }
 
-    // MARK: - Life Cycle
-
     override func viewDidLoad() {
         super.viewDidLoad()
-        configureUI()
-        ordersTableView.dataSource = self
-        logoutButton.addTarget(self, action: #selector(logoutTapped), for: .touchUpInside)
-        interactor.loadUser(request: .init())
-        interactor.loadOrders(request: .init())
+        setupUI()
+        loadData()
     }
 
-    // MARK: - UI
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Обновляем данные при каждом появлении экрана
+        loadData()
+    }
 
-    private func configureUI() {
+    // MARK: - Setup
+
+    private func setupUI() {
         view.backgroundColor = .systemBackground
-        configureLogoutButton()
-        configureNameLabel()
-        configureOrdersTableView()
+        title = "Профиль"
+        
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            title: "Выйти",
+            style: .plain,
+            target: self,
+            action: #selector(logoutTapped)
+        )
+        
+        view.addSubview(tableView)
+        NSLayoutConstraint.activate([
+            tableView.topAnchor.constraint(equalTo: view.topAnchor),
+            tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
     }
 
-    private func configureLogoutButton() {
-        view.addSubview(logoutButton)
-        logoutButton.pinLeft(to: view, 20)
-        logoutButton.pinRight(to: view, 20)
-        logoutButton.pinBottom(to: view.safeAreaLayoutGuide, 20)
-        logoutButton.setHeight(mode: .equal, 50)
+    private func loadData() {
+        interactor.loadProfile(request: .init())
     }
-
-    private func configureNameLabel() {
-        view.addSubview(nameLabel)
-        nameLabel.pinTop(to: view.safeAreaLayoutGuide, 20)
-        nameLabel.pinLeft(to: view, 20)
-        nameLabel.pinRight(to: view, 20)
-    }
-
-    private func configureOrdersTableView() {
-        view.addSubview(ordersTableView)
-        ordersTableView.pinTop(to: nameLabel.bottomAnchor, 20)
-        ordersTableView.pinLeft(to: view, 20)
-        ordersTableView.pinRight(to: view, 20)
-        // Важный момент: logoutButton уже добавлен во view, поэтому constraint корректен:
-        ordersTableView.pinBottom(to: logoutButton.topAnchor, 20)
-    }
-
-    // MARK: - Display Logic
-
-    func displayUser(viewModel: Profile.LoadUser.ViewModel) {
-        nameLabel.text = viewModel.displayName
-    }
-
-    func displayOrders(viewModel: Profile.LoadOrders.ViewModel) {
-        orders = viewModel.orders
-        ordersTableView.reloadData()
-    }
-
-    func displayLogout() {
-        router.routeToLogin()
-    }
-
-    // MARK: - Actions
 
     @objc private func logoutTapped() {
-        interactor.logout(request: .init())
+        let alert = UIAlertController(
+            title: "Выйти из аккаунта?",
+            message: "Вы уверены, что хотите выйти?",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Выйти", style: .destructive) { [weak self] _ in
+            self?.interactor.logout(request: .init())
+        })
+        
+        present(alert, animated: true)
     }
 }
 
-// MARK: - UITableViewDataSource
+// MARK: - Display Logic
 
-extension ProfileViewController: UITableViewDataSource {
+extension ProfileViewController: ProfileDisplayLogic {
+    func displayProfile(viewModel: Profile.LoadProfile.ViewModel) {
+        userName = viewModel.name
+        userEmail = viewModel.email
+        orders = viewModel.orders
+        title = viewModel.name
+        tableView.reloadData()
+    }
+    
+    func displayLogout(viewModel: Profile.Logout.ViewModel) {
+        router.routeToAuth()
+    }
+}
+
+// MARK: - UITableViewDataSource & UITableViewDelegate
+
+extension ProfileViewController: UITableViewDataSource, UITableViewDelegate {
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return 2
+    }
+    
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        orders.count
+        switch section {
+        case 0: return 1 // Информация профиля
+        case 1: return orders.count // История заказов
+        default: return 0
+        }
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "OrderCell", for: indexPath)
-        let orderVM = orders[indexPath.row]
-        cell.textLabel?.text = "Заказ \(orderVM.orderId): \(orderVM.dateText) — \(orderVM.totalText)"
+        
+        var content = cell.defaultContentConfiguration()
+        
+        switch indexPath.section {
+        case 0:
+            content.text = userName
+            content.textProperties.font = .systemFont(ofSize: 17, weight: .semibold)
+            content.secondaryText = userEmail
+            content.secondaryTextProperties.font = .systemFont(ofSize: 14)
+            content.secondaryTextProperties.color = .systemGray
+            cell.selectionStyle = .none
+            
+        case 1:
+            let order = orders[indexPath.row]
+            content.text = order.date
+            content.secondaryText = "\(order.items)\nИтого: \(order.total)"
+            content.secondaryTextProperties.numberOfLines = 0
+            cell.accessoryType = .none
+            
+        default:
+            break
+        }
+        
+        cell.contentConfiguration = content
         return cell
+    }
+    
+    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        switch section {
+        case 0: return "Профиль"
+        case 1: return "История заказов"
+        default: return nil
+        }
+    }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
     }
 }

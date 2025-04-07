@@ -1,10 +1,3 @@
-//
-//  MealDetailViewController.swift
-//  RESTAPP
-//
-//  Created by Артём on 02.04.2025.
-//
-
 import UIKit
 
 // MARK: - Display Logic
@@ -14,128 +7,271 @@ protocol MealDetailDisplayLogic: AnyObject {
 
 // MARK: - MealDetailViewController
 final class MealDetailViewController: UIViewController, MealDetailDisplayLogic {
-    
+
     // MARK: - Properties
-    var interactor: (MealDetailBusinessLogic & MealDetailDataStore)?
     private var currentMeal: Meal?
+    private var isRestaurantOpen: Bool {
+        RestaurantService.shared.currentRestaurant?.isOpen ?? false
+    }
     
-    private let nameLabel: UILabel = {
-        let label = UILabel()
-        label.font = .boldSystemFont(ofSize: 22)
-        label.numberOfLines = 0
-        return label
+    // MARK: - UI Elements
+    private let scrollView: UIScrollView = {
+        let sv = UIScrollView()
+        sv.translatesAutoresizingMaskIntoConstraints = false
+        return sv
     }()
     
     private let imageView: UIImageView = {
         let iv = UIImageView()
+        iv.translatesAutoresizingMaskIntoConstraints = false
         iv.contentMode = .scaleAspectFill
         iv.clipsToBounds = true
+        iv.backgroundColor = .systemGray6
+        iv.layer.cornerRadius = 6
         return iv
     }()
     
+    private let counterButton = CounterButton()
+    
+    private let closedLabel: UILabel = {
+        let label = UILabel()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.textAlignment = .center
+        label.font = .systemFont(ofSize: 15, weight: .medium)
+        label.textColor = .systemGray
+        label.backgroundColor = .systemGray6
+        label.layer.cornerRadius = 8
+        label.clipsToBounds = true
+        label.isHidden = true
+        label.numberOfLines = 0
+        return label
+    }()
+
+    // MARK: — UI
+    private let nameLabel: UILabel = {
+        let l = UILabel()
+        l.font          = .systemFont(ofSize: 26, weight: .bold)
+        l.lineBreakMode = .byTruncatingTail
+        l.numberOfLines = 1
+        l.setContentHuggingPriority(.required, for: .vertical)
+        l.setContentCompressionResistancePriority(.required, for: .vertical)
+        return l
+    }()
+
     private let weightLabel: UILabel = {
-        let label = UILabel()
-        label.font = .systemFont(ofSize: 16)
-        label.textColor = .darkGray
-        return label
+        let l = UILabel()
+        l.font      = .systemFont(ofSize: 20, weight: .semibold)
+        l.textColor = .darkGray
+        l.setContentHuggingPriority(.required, for: .vertical)
+        l.setContentCompressionResistancePriority(.required, for: .vertical)
+        return l
     }()
-    
-    private let priceLabel: UILabel = {
-        let label = UILabel()
-        label.font = .systemFont(ofSize: 20)
-        label.textColor = .systemGreen
-        return label
+
+    private let descriptionLabel: UILabel = {
+        let l = UILabel()
+        l.font          = .systemFont(ofSize: 18, weight: .regular)
+        l.numberOfLines = 0
+        l.setContentHuggingPriority(.required, for: .vertical)
+        l.setContentCompressionResistancePriority(.required, for: .vertical)
+        return l
     }()
-    
-    private let closeButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setTitle("Закрыть", for: .normal)
-        return button
+
+    private let nutritionLabel: UILabel = {
+        let l = UILabel()
+        l.font          = .systemFont(ofSize: 16, weight: .regular)
+        l.textColor     = .darkGray
+        l.numberOfLines = 0
+        l.setContentHuggingPriority(.required, for: .vertical)
+        l.setContentCompressionResistancePriority(.required, for: .vertical)
+        return l
     }()
-    
-    private let addToCartButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setTitle("Добавить в корзину", for: .normal)
-        button.tintColor = .white
-        button.backgroundColor = .systemGreen
-        button.layer.cornerRadius = 8
-        return button
+
+    private let compositionLabel: UILabel = {
+        let l = UILabel()
+        l.font          = .italicSystemFont(ofSize: 18)
+        l.textColor     = .darkGray
+        l.numberOfLines = 0
+        l.setContentHuggingPriority(.required, for: .vertical)
+        l.setContentCompressionResistancePriority(.required, for: .vertical)
+        return l
     }()
-    
-    // MARK: - Initializer
+
+    // MARK: — Interactor
+    var interactor: (MealDetailBusinessLogic & MealDetailDataStore)?
+
+    // MARK: — Init
     init(meal: Meal) {
         super.init(nibName: nil, bundle: nil)
-        setup(with: meal)
-    }
-    
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    
-    // MARK: - Life Cycle
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .white
-        configureUI()
-        configureAddButton()
-        interactor?.loadMeal(request: .init(mealID: currentMeal?.id ?? ""))
-    }
-    
-    // MARK: - Setup
-    private func setup(with meal: Meal) {
         let interactor = MealDetailInteractor()
-        let presenter = MealDetailPresenter()
-        self.interactor = interactor
+        let presenter  = MealDetailPresenter()
+        self.interactor      = interactor
         interactor.presenter = presenter
         presenter.viewController = self
-        interactor.meal = meal
+        interactor.meal      = meal
+        
+        // Подписываемся на изменения корзины
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(cartDidChange),
+            name: .cartDidChange,
+            object: nil
+        )
     }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     
-    // MARK: - UI Configuration
-    private func configureUI() {
-        let stack = UIStackView(arrangedSubviews: [imageView, nameLabel, weightLabel, priceLabel, closeButton])
-        stack.axis = .vertical
-        stack.spacing = 16
-        view.addSubview(stack)
-        stack.pinTop(to: view.safeAreaLayoutGuide, 20)
-        stack.pinLeft(to: view, 20)
-        stack.pinRight(to: view, 20)
-        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
-    
-    private func configureAddButton() {
-        view.addSubview(addToCartButton)
-        addToCartButton.pinLeft(to: view, 20)
-        addToCartButton.pinRight(to: view, 20)
-        addToCartButton.pinBottom(to: view.safeAreaLayoutGuide, 16)
-        addToCartButton.setHeight(mode: .equal, 50)
-        addToCartButton.addTarget(self, action: #selector(addToCartTapped), for: .touchUpInside)
+
+    // MARK: — Lifecycle
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupUI()
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(cartDidChange),
+            name: .cartDidChange,
+            object: nil
+        )
+        
+        // Запускаем таймер для проверки статуса открытия
+        startOpenStatusTimer()
+        
+        interactor?.loadMeal(request: .init(mealID: ""))
     }
-    
-    // MARK: - Actions
-    @objc private func closeTapped() {
-        dismiss(animated: true)
+
+    private func setupUI() {
+        view.backgroundColor = .systemBackground
+
+        configureImageView()
+        configureNameLabel()
+        configureWeightLabel()
+        configureDescriptionLabel()
+        configureNutritionLabel()
+        configureCompositionLabel()
+        configureCounterButton()
+
+        // Add closed label
+        view.addSubview(closedLabel)
+        NSLayoutConstraint.activate([
+            closedLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            closedLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            closedLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
+            closedLabel.heightAnchor.constraint(equalToConstant: 44)
+        ])
+        
+        updateClosedState()
     }
-    
-    @objc private func addToCartTapped() {
+
+    private func updateClosedState() {
+        counterButton.isHidden = !isRestaurantOpen
+        closedLabel.isHidden = isRestaurantOpen
+        
+        if !isRestaurantOpen, let restaurant = RestaurantService.shared.currentRestaurant {
+            closedLabel.text = """
+                Извините, сейчас заведение закрыто
+                Сегодня: \(restaurant.openingHours.currentDaySchedule)
+                """
+        }
+    }
+
+    private func startOpenStatusTimer() {
+        // Проверяем статус каждую минуту
+        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.updateClosedState()
+        }
+    }
+
+    // MARK: — Конфигурация подвидов + констрейнты
+
+    private func configureImageView() {
+        view.addSubview(imageView)
+        imageView.pinTop(to: view.safeAreaLayoutGuide, 16)
+        imageView.pinHorizontal(to: view, 16)
+        imageView.setHeight(300)
+        imageView.pinWidth(to: imageView.heightAnchor)
+    }
+
+    private func configureNameLabel() {
+        view.addSubview(nameLabel)
+        nameLabel.pinTop(to: imageView.bottomAnchor, 5)
+        nameLabel.pinHorizontal(to: view, 16)
+    }
+
+    private func configureWeightLabel() {
+        view.addSubview(weightLabel)
+        weightLabel.pinTop(to: nameLabel.bottomAnchor, 4)
+        weightLabel.pinHorizontal(to: view, 16)
+    }
+
+    private func configureDescriptionLabel() {
+        view.addSubview(descriptionLabel)
+        descriptionLabel.pinTop(to: weightLabel.bottomAnchor, 10)
+        descriptionLabel.pinHorizontal(to: view, 16)
+    }
+
+    private func configureNutritionLabel() {
+        view.addSubview(nutritionLabel)
+        nutritionLabel.pinTop(to: descriptionLabel.bottomAnchor, 8)
+        nutritionLabel.pinHorizontal(to: view, 16)
+    }
+
+    private func configureCompositionLabel() {
+        view.addSubview(compositionLabel)
+        compositionLabel.pinTop(to: nutritionLabel.bottomAnchor, 8)
+        compositionLabel.pinHorizontal(to: view, 16)
+    }
+
+    private func configureCounterButton() {
+        view.addSubview(counterButton)
+        counterButton.pinHorizontal(to: view, 16)
+        counterButton.setHeight(mode: .equal, 50)
+        counterButton.pinBottom(to: view.safeAreaLayoutGuide, 16)
+        
+        counterButton.onIncrease = { [weak self] in
+            guard let self = self, let meal = self.currentMeal else { return }
+            CartService.shared.add(meal: meal)
+        }
+        
+        counterButton.onDecrease = { [weak self] in
+            guard let self = self, let meal = self.currentMeal else { return }
+            CartService.shared.remove(meal: meal)
+        }
+    }
+
+    // MARK: — Cart Observer
+    @objc private func cartDidChange() {
         guard let meal = currentMeal else { return }
-        CartService.shared.add(meal: meal)
-        dismiss(animated: true)
+        let count = CartService.shared.getAllItems().first { $0.meal == meal }?.count ?? 0
+        counterButton.updateCount(count)
     }
-    
-    // MARK: - Display Logic
+
+    // MARK: — DisplayLogic
     func displayMeal(viewModel: MealDetail.Load.ViewModel) {
+        currentMeal = interactor?.meal
+        
         nameLabel.text = viewModel.name
         weightLabel.text = viewModel.weightText
-        priceLabel.text = viewModel.priceText
-        if URL(string: viewModel.imageName) != nil {
-            Task { await imageView.loadImageAsync(from: viewModel.imageName) }
+        descriptionLabel.text = viewModel.description
+        nutritionLabel.text = """
+            \(viewModel.kcalText)
+            \(viewModel.proteinText)
+            \(viewModel.fatText)
+            \(viewModel.carbsText)
+            """
+        compositionLabel.text = "Состав: \(viewModel.composition)"
+        
+        if let meal = currentMeal {
+            counterButton.configure(price: meal.price)
+            let count = CartService.shared.getAllItems().first { $0.meal == meal }?.count ?? 0
+            counterButton.updateCount(count)
         }
-        currentMeal = Meal(
-            id: viewModel.id,
-            name: viewModel.name,
-            imageURL: viewModel.imageName,
-            price: viewModel.price,
-            description: viewModel.description,
-            weight: viewModel.weight
-        )
+
+        if let url = URL(string: viewModel.imageURL) {
+            Task { await imageView.loadImageAsync(from: url.absoluteString) }
+        }
+        
+        updateClosedState()
     }
 }

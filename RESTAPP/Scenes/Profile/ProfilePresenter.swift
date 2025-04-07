@@ -6,12 +6,12 @@
 //
 
 import UIKit
+import Foundation
 
 // MARK: - Profile Presentation Logic
 
 protocol ProfilePresentationLogic {
-    func presentUser(response: Profile.LoadUser.Response)
-    func presentOrders(response: Profile.LoadOrders.Response)
+    func presentProfile(response: Profile.LoadProfile.Response)
     func presentLogout(response: Profile.Logout.Response)
 }
 
@@ -20,25 +20,19 @@ protocol ProfilePresentationLogic {
 final class ProfilePresenter: ProfilePresentationLogic {
     weak var viewController: ProfileDisplayLogic?
     
-    func presentUser(response: Profile.LoadUser.Response) {
-        let viewModel = Profile.LoadUser.ViewModel(displayName: response.name)
-        viewController?.displayUser(viewModel: viewModel)
-    }
-    
-    func presentOrders(response: Profile.LoadOrders.Response) {
-        let ordersVM = response.orders.map { order in
-            let formatter = DateFormatter()
-            formatter.dateStyle = .short
-            let dateText = formatter.string(from: order.date)
-            let itemsText = order.items.joined(separator: ", ")
-            let totalText = "\(order.total) ₽"
-            return OrderViewModel(orderId: order.id, dateText: dateText, itemsText: itemsText, totalText: totalText)
-        }
-        let viewModel = Profile.LoadOrders.ViewModel(orders: ordersVM)
-        viewController?.displayOrders(viewModel: viewModel)
+    func presentProfile(response: Profile.LoadProfile.Response) {
+        let orderViewModels = response.orders.map { OrderCellViewModel(order: $0) }
+        
+        let viewModel = Profile.LoadProfile.ViewModel(
+            name: response.name,
+            email: response.email,
+            orders: orderViewModels
+        )
+        
+        viewController?.displayProfile(viewModel: viewModel)
     }
     
     func presentLogout(response: Profile.Logout.Response) {
-        viewController?.displayLogout()
+        viewController?.displayLogout(viewModel: .init())
     }
 }

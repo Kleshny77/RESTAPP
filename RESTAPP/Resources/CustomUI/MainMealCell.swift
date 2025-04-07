@@ -53,7 +53,7 @@ final class MainMealCell: UICollectionViewCell {
         return l
     }()
 
-    /// Кнопка “цена ₽ +”
+    /// Кнопка "цена ₽ +"
     private let priceButton: HighlightButton = {
         let b = HighlightButton(type: .custom)
         b.backgroundColor   = UIColor(hex: "F2F2F2")
@@ -76,7 +76,7 @@ final class MainMealCell: UICollectionViewCell {
         return iv
     }()
 
-    /// Контейнер “счётчика”
+    /// Контейнер "счётчика"
     private let counterContainer: UIView = {
         let v = UIView()
         v.backgroundColor   = .systemGray6
@@ -145,11 +145,15 @@ final class MainMealCell: UICollectionViewCell {
     // MARK: – Public API
     func configure(with meal: Meal) {
         self.meal = meal
-        nameLabel.text   = meal.name
-        weightLabel.text = "\(meal.weight) г"
-        priceLabel.text  = "\(meal.price) ₽"
-        imageView.sd_setImage(with: URL(string: meal.imageURL),
-                              placeholderImage: UIImage(named: "placeholder"))
+        nameLabel.text    = meal.name
+        weightLabel.text  = "\(meal.weight) г"
+        priceLabel.text   = "\(meal.price) ₽"
+        if let imageURLString = meal.imageURL {
+            imageView.sd_setImage(with: URL(string: imageURLString),
+                                placeholderImage: UIImage(named: "placeholder"))
+        } else {
+            imageView.image = UIImage(named: "placeholder")
+        }
 
         // скрывать вес, если название занимает две строки
         nameLabel.preferredMaxLayoutWidth = contentView.bounds.width - 6
@@ -161,6 +165,7 @@ final class MainMealCell: UICollectionViewCell {
             .getAllItems()
             .first { $0.meal == meal }?
             .count ?? 0
+        
         if currentCount > 0 {
             showCounter(count: currentCount)
         } else {
@@ -192,7 +197,7 @@ final class MainMealCell: UICollectionViewCell {
     }
 
     private func configurePriceButton() {
-        // собираем “капсулу”
+        // собираем "капсулу"
         let h = UIStackView(arrangedSubviews: [priceLabel, plusIcon])
         h.axis      = .horizontal
         h.alignment = .center
@@ -333,7 +338,7 @@ final class HighlightButton: UIButton {
                 self.transform = self.pressedTransform
             }
         } else {
-            // ⬅️ «отпрыгиваем» – чуть медленнее и c лёгкой пружинкой
+            // ⬅️ «отпрыгиваем» – чуть медленнее и c лёгкой пружинкой
             UIView.animate(withDuration: 0.45,
                            delay: 0,
                            usingSpringWithDamping: 0.85,

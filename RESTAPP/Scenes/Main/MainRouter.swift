@@ -23,7 +23,7 @@ final class MainRouter: NSObject, MainRoutingLogic, MainDataPassing {
     func routeToMealDetail(meal: Meal) {
         let detailVC = MealDetailViewController(meal: meal)
         if let sheet = detailVC.sheetPresentationController {
-            sheet.detents = [.medium()]
+            sheet.detents = [.large()]
             sheet.prefersGrabberVisible = true
         }
         viewController?.present(detailVC, animated: true)

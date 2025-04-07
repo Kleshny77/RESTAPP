@@ -1,44 +1,54 @@
-//
-//  PaymentInteractor.swift
-//  RESTAPP
-//
-//  Created by Артём on 21.04.2025.
-//
+// PaymentInteractor.swift
 
 import Foundation
 
 protocol PaymentBusinessLogic {
-    func makePayment(request: Payment.MakePayment.Request)
+  func makePayment(request: Payment.MakePayment.Request)
 }
 protocol PaymentDataStore {
-    var amount: Int { get }
+  var amount: Int { get }
+  var items: [OrderItem] { get }
+  var restaurantId: String { get }
 }
 
-final class PaymentInteractor: PaymentBusinessLogic, PaymentDataStore {
-    var presenter: PaymentPresentationLogic?
-    var router: (NSObjectProtocol & PaymentRoutingLogic)?
+final class PaymentInteractor:
+  PaymentBusinessLogic,
+  PaymentDataStore
+{
+  var presenter: PaymentPresentationLogic?
+  var router: (NSObjectProtocol & PaymentRoutingLogic)?
 
-    // будем хранить сумму в интеракторе
-    let amount: Int
+  // теперь публичные:
+  let items: [OrderItem]
+  let restaurantId: String
 
-    init(amount: Int) {
-        self.amount = amount
-    }
+  var amount: Int {
+    items.reduce(0) { $0 + $1.price * $1.quantity }
+  }
 
-    func makePayment(request: Payment.MakePayment.Request) {
-        // эмулируем сетевой запрос
-        DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
-            let success = true // можно random или false
-            let response = Payment.MakePayment.Response(
-                success: success,
-                errorMessage: nil
-            )
-            self.presenter?.presentPaymentResult(response: response)
-            if success {
-                DispatchQueue.main.async {
-                    self.router?.routeToConfirmation()
-                }
-            }
+  init(items: [OrderItem], restaurantId: String) {
+    self.items = items
+    self.restaurantId = restaurantId
+  }
+
+  func makePayment(request: Payment.MakePayment.Request) {
+    OrderService.shared.placeOrder(
+      userId:      request.userId,
+      restaurantId: request.restaurantId,
+      items:       request.items
+    ) { [weak self] result in
+      guard let self = self else { return }
+      switch result {
+      case .success:
+        let response = Payment.MakePayment.Response(isSuccess: true, errorMessage: nil)
+        self.presenter?.presentPaymentResult(response: response)
+        DispatchQueue.main.async {
+          self.router?.routeToConfirmation()
         }
+      case .failure(let error):
+        let response = Payment.MakePayment.Response(isSuccess: false, errorMessage: error.localizedDescription)
+        self.presenter?.presentPaymentResult(response: response)
+      }
     }
+  }
 }

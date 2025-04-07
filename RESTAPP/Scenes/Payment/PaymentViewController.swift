@@ -1,76 +1,74 @@
-//
-//  PaymentViewController.swift
-//  RESTAPP
-//
-//  Created by Артём on 21.04.2025.
-//
+// PaymentViewController.swift
 
 import UIKit
+import FirebaseAuth
 
 protocol PaymentDisplayLogic: AnyObject {
-    func displayPaymentResult(viewModel: Payment.MakePayment.ViewModel)
+  func displayPaymentResult(viewModel: Payment.MakePayment.ViewModel)
 }
 
-final class PaymentViewController: UIViewController, PaymentDisplayLogic {
-    var interactor: PaymentBusinessLogic?
-    var router: PaymentRoutingLogic?
+final class PaymentViewController:
+  UIViewController,
+  PaymentDisplayLogic
+{
+  var interactor: (PaymentBusinessLogic & PaymentDataStore)?
+  var router: PaymentRoutingLogic?
 
-    private let amountLabel: UILabel = {
-        let l = UILabel()
-        l.font = .systemFont(ofSize: 20, weight: .semibold)
-        l.translatesAutoresizingMaskIntoConstraints = false
-        return l
-    }()
+  private let amountLabel = UILabel()
+  private let payButton   = UIButton(type: .system)
 
-    private let payButton: UIButton = {
-        let b = UIButton(type: .system)
-        b.setTitle("Оплатить", for: .normal)
-        b.titleLabel?.font = .systemFont(ofSize: 18, weight: .medium)
-        b.translatesAutoresizingMaskIntoConstraints = false
-        return b
-    }()
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    view.backgroundColor = .systemBackground
+    setupUI()
+  }
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .systemBackground
-        setupUI()
+  private func setupUI() {
+    amountLabel.font = .systemFont(ofSize: 20, weight: .semibold)
+    payButton.setTitle("Оплатить", for: .normal)
+    payButton.titleLabel?.font = .systemFont(ofSize: 18)
+    payButton.addTarget(self, action: #selector(payTapped), for: .touchUpInside)
+
+    [amountLabel, payButton].forEach {
+      $0.translatesAutoresizingMaskIntoConstraints = false
+      view.addSubview($0)
     }
+    NSLayoutConstraint.activate([
+      amountLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      amountLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 40),
 
-    private func setupUI() {
-        view.addSubview(amountLabel)
-        view.addSubview(payButton)
+      payButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      payButton.topAnchor.constraint(equalTo: amountLabel.bottomAnchor, constant: 20),
+      payButton.heightAnchor.constraint(equalToConstant: 44),
+      payButton.widthAnchor.constraint(equalToConstant: 200),
+    ])
 
-        // подставим сумму из интерактора
-        if let ds = interactor as? PaymentDataStore {
-            amountLabel.text = "Сумма: \(ds.amount) ₽"
-        }
-
-        payButton.addTarget(self, action: #selector(payTapped), for: .touchUpInside)
-
-        NSLayoutConstraint.activate([
-            amountLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            amountLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 40),
-
-            payButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            payButton.topAnchor.constraint(equalTo: amountLabel.bottomAnchor, constant: 20),
-            payButton.heightAnchor.constraint(equalToConstant: 44),
-            payButton.widthAnchor.constraint(equalToConstant: 200),
-        ])
+    if let ds = interactor {
+      amountLabel.text = "Сумма: \(ds.amount) ₽"
     }
+  }
 
-    @objc private func payTapped() {
-        guard let ds = interactor as? PaymentDataStore else { return }
-        let req = Payment.MakePayment.Request(amount: ds.amount)
-        interactor?.makePayment(request: req)
-    }
+  @objc private func payTapped() {
+    guard
+      let userId = Auth.auth().currentUser?.uid,
+      let ds     = interactor
+    else { return }
 
-    func displayPaymentResult(viewModel: Payment.MakePayment.ViewModel) {
-        let alert = UIAlertController(
-            title: viewModel.title,
-            message: viewModel.message,
-            preferredStyle: .alert
-        )
-        alert.addAction(.init(title: "OK", style: .default))
-        present(alert, animated: true)
-    }
+    let req = Payment.MakePayment.Request(
+      userId:       userId,
+      restaurantId: ds.restaurantId,
+      items:        ds.items
+    )
+    interactor?.makePayment(request: req)
+  }
+
+  func displayPaymentResult(viewModel: Payment.MakePayment.ViewModel) {
+    let alert = UIAlertController(
+      title: viewModel.title,
+      message: viewModel.message,
+      preferredStyle: .alert
+    )
+    alert.addAction(.init(title: "OK", style: .default))
+    present(alert, animated: true)
+  }
 }

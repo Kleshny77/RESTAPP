@@ -19,12 +19,15 @@ enum MealDetail {
         struct ViewModel {
             let id: String
             let name: String
-            let imageName: String
-            let price: Int
+            let imageURL: String
             let priceText: String
-            let weight: Int
             let weightText: String
             let description: String
+            let kcalText: String
+            let proteinText: String
+            let fatText: String
+            let carbsText: String
+            let composition: String
         }
     }
 }

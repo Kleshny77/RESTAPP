@@ -11,14 +11,14 @@ final class CartPresenter: CartPresentationLogic {
         let items = response.items.map {
             CartItemViewModel(
                 meal: $0.meal,
-                imageURL: $0.meal.imageURL,
+                imageURL: $0.meal.imageURL ?? "",
                 name: $0.meal.name,
-                weightText: "\($0.meal.weight) г",
+                weightText: "\($0.meal.weight) г",
                 count: $0.count,
-                priceText: "\($0.meal.price * $0.count) ₽"
+                priceText: "\($0.meal.price * $0.count) ₽"
             )
         }
-        let totalText = "Итого: \(Int(response.total)) ₽"
+        let totalText = "Итого: \(Int(response.total)) ₽"
         let vm = Cart.Load.ViewModel(items: items, totalText: totalText)
         viewController?.displayCart(viewModel: vm)
     }

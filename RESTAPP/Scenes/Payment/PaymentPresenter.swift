@@ -1,29 +1,24 @@
-//
-//  PaymentPresenter.swift
-//  RESTAPP
-//
-//  Created by Артём on 21.04.2025.
-//
+// PaymentPresenter.swift
 
-import Foundation
+import UIKit
 
 protocol PaymentPresentationLogic: AnyObject {
-    func presentPaymentResult(response: Payment.MakePayment.Response)
+  func presentPaymentResult(response: Payment.MakePayment.Response)
 }
 
 final class PaymentPresenter: PaymentPresentationLogic {
-    weak var viewController: PaymentDisplayLogic?
+  weak var viewController: PaymentDisplayLogic?
 
-    func presentPaymentResult(response: Payment.MakePayment.Response) {
-        let title = response.success ? "Успешно" : "Ошибка"
-        let message = response.success
-            ? "Оплата прошла успешно"
-            : (response.errorMessage ?? "Неизвестная ошибка")
-        let vm = Payment.MakePayment.ViewModel(
-            title: title,
-            message: message,
-            isSuccess: response.success
-        )
-        viewController?.displayPaymentResult(viewModel: vm)
+  func presentPaymentResult(response: Payment.MakePayment.Response) {
+    let vm: Payment.MakePayment.ViewModel
+    if response.isSuccess {
+      vm = .init(title: "Успех", message: "Заказ успешно оформлен и оплачен")
+    } else {
+      vm = .init(
+        title: "Ошибка",
+        message: response.errorMessage ?? "Неизвестная ошибка"
+      )
     }
+    viewController?.displayPaymentResult(viewModel: vm)
+  }
 }

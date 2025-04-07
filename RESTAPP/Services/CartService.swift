@@ -56,14 +56,10 @@ final class CartService {
     }
     
     private func notifyChange() {
-            NotificationCenter.default.post(
-              name: .cartDidChange,
-              object: nil
-            )
-        }
-}
-
-extension Notification.Name {
-    static let cartDidChange = Notification.Name("cartDidChange")
+        NotificationCenter.default.post(
+            name: .cartDidChange,
+            object: nil
+        )
+    }
 }
 
