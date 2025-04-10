@@ -10,9 +10,7 @@ import UIKit
 // MARK: - MealDetail Models
 enum MealDetail {
     enum Load {
-        struct Request {
-            let mealID: String
-        }
+        struct Request {}
         struct Response {
             let meal: Meal
         }

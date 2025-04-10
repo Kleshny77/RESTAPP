@@ -1,8 +1,8 @@
 //
-//  FirebaseService.swift
+//  FirebaceService.swift
 //  RESTAPP
 //
-//  Created by Артём on 04.04.2025.
+//  Created by Артём on 27.03.2025.
 //
 
 import FirebaseFirestore
@@ -53,7 +53,7 @@ final class FirebaseService {
     
     func fetchRestaurant(id: String) async throws -> Restaurant {
         let document = try await db.collection("restaurants").document(id).getDocument()
-        let data = document.data()  // data всегда ненулевой словарь
+        let data = document.data()
         
         guard
             let name = data?["name"] as? String,

@@ -2,46 +2,53 @@
 //  MainRouter.swift
 //  RESTAPP
 //
-//  Created by Артём on 28.03.2025.
+//  Created by Артём on 29.03.2025.
 //
-
 import UIKit
 
-// MARK: - Routing Logic
+// MARK: – Protocols
 protocol MainRoutingLogic {
     func routeToMealDetail(meal: Meal)
     func routeToProfile()
     func routeToCart()
 }
-
-// MARK: - Data Passing
 protocol MainDataPassing { }
 
+// MARK: – Router
 final class MainRouter: NSObject, MainRoutingLogic, MainDataPassing {
+
     weak var viewController: UIViewController?
-    
+
     func routeToMealDetail(meal: Meal) {
-        let detailVC = MealDetailViewController(meal: meal)
+        let detailVC = MealDetailAssembly.build(with: meal)
+
         if let sheet = detailVC.sheetPresentationController {
-            sheet.detents = [.large()]
+            if #available(iOS 16.0, *) {
+                sheet.detents = [.large()]
+            }
             sheet.prefersGrabberVisible = true
         }
         viewController?.present(detailVC, animated: true)
     }
-    
+
     func routeToProfile() {
         let profileVC = ProfileAssembly.build()
-        viewController?.navigationController?.pushViewController(profileVC, animated: true)
+        viewController?.navigationItem.backButtonTitle = "Назад"
+        viewController?
+            .navigationController?
+            .pushViewController(profileVC, animated: true)
     }
-    
+
     func routeToCart() {
         let cartVC = CartAssembly.build()
         cartVC.modalPresentationStyle = .pageSheet
+
         if let sheet = cartVC.sheetPresentationController {
-            sheet.detents = [.large()]
+            if #available(iOS 16.0, *) {
+                sheet.detents = [.large()]
+            }
             sheet.prefersGrabberVisible = true
         }
-        
         viewController?.present(cartVC, animated: true)
     }
 }

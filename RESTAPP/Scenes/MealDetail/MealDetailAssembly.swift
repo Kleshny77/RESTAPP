@@ -10,13 +10,16 @@ import UIKit
 // MARK: - Assembly
 enum MealDetailAssembly {
     static func build(with meal: Meal) -> UIViewController {
-        let interactor = MealDetailInteractor()
-        let presenter = MealDetailPresenter()
-        let viewController = MealDetailViewController(meal: meal)
         
+        let interactor = MealDetailInteractor()
+        interactor.meal = meal
+        
+        let presenter  = MealDetailPresenter()
         interactor.presenter = presenter
-        presenter.viewController = viewController
+        
+        let viewController = MealDetailViewController()
         viewController.interactor = interactor
+        presenter.viewController  = viewController
         
         return viewController
     }

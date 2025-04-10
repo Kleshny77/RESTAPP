@@ -1,3 +1,10 @@
+//
+//  CounterButton.swift
+//  RESTAPP
+//
+//  Created by Артём on 29.03.2025.
+//
+
 import UIKit
 
 final class CounterButton: UIView {
@@ -65,7 +72,6 @@ final class CounterButton: UIView {
     
     // MARK: - Setup
     private func setupViews() {
-        // Add price button
         addSubview(priceButton)
         priceButton.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -75,7 +81,6 @@ final class CounterButton: UIView {
             priceButton.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
         
-        // Add counter container
         addSubview(counterContainer)
         counterContainer.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -85,7 +90,6 @@ final class CounterButton: UIView {
             counterContainer.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
         
-        // Setup counter elements
         let stack = UIStackView(arrangedSubviews: [minusButton, countLabel, plusButton])
         stack.axis = .horizontal
         stack.distribution = .equalSpacing
@@ -101,7 +105,6 @@ final class CounterButton: UIView {
             stack.bottomAnchor.constraint(equalTo: counterContainer.bottomAnchor, constant: -8)
         ])
         
-        // Set initial width
         widthConstraint = widthAnchor.constraint(equalToConstant: 120)
         widthConstraint?.isActive = true
     }
@@ -133,11 +136,9 @@ final class CounterButton: UIView {
         countLabel.text = "\(count)"
         
         if animated {
-            // 1. Сначала прожимаем кнопку
             UIView.animate(withDuration: 0.1, animations: {
                 self.priceButton.transform = CGAffineTransform(scaleX: 0.95, y: 0.95)
             }) { _ in
-                // 2. Затем показываем счетчик и возвращаем нормальный размер
                 UIView.animate(withDuration: 0.1, delay: 0, options: .curveEaseOut, animations: {
                     self.priceButton.alpha = 0
                     self.counterContainer.alpha = 1
@@ -152,11 +153,9 @@ final class CounterButton: UIView {
     
     private func showPriceButton(animated: Bool = true) {
         if animated {
-            // 1. Сначала прожимаем счетчик
             UIView.animate(withDuration: 0.15, animations: {
                 self.counterContainer.transform = CGAffineTransform(scaleX: 0.95, y: 0.95)
             }) { _ in
-                // 2. Затем показываем кнопку цены и возвращаем нормальный размер
                 UIView.animate(withDuration: 0.2, delay: 0, options: .curveEaseOut, animations: {
                     self.priceButton.alpha = 1
                     self.counterContainer.alpha = 0

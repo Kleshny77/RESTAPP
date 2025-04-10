@@ -134,7 +134,6 @@ extension UIView {
         return pinConstraint(mode: mode, bottomAnchor, layoutGuide.bottomAnchor, constant: -const)
     }
     
-    // Новый метод: привязка ко всем сторонам UILayoutGuide
     func pin(to layoutGuide: UILayoutGuide, _ const: Double = 0) {
         pinTop(to: layoutGuide, const)
         pinBottom(to: layoutGuide, const)

@@ -1,3 +1,10 @@
+//
+//  CounterView.swift
+//  RESTAPP
+//
+//  Created by Артём on 02.03.2025.
+//
+
 import UIKit
 
 final class CounterView: UIView {
@@ -24,7 +31,6 @@ final class CounterView: UIView {
         backgroundColor = UIColor(hex: "FF9700")
         layer.cornerRadius = 8
         
-        // Настройка кнопок
         [minusButton, plusButton].forEach {
             $0.tintColor = .white
             $0.titleLabel?.font = .systemFont(ofSize: 20, weight: .medium)
@@ -33,13 +39,11 @@ final class CounterView: UIView {
         minusButton.setTitle("−", for: .normal)
         plusButton.setTitle("+", for: .normal)
         
-        // Настройка лейбла
         countLabel.textColor = .white
         countLabel.font = .systemFont(ofSize: 16, weight: .medium)
         countLabel.textAlignment = .center
         countLabel.text = "0"
         
-        // Добавление и расположение элементов
         [minusButton, countLabel, plusButton].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             addSubview($0)

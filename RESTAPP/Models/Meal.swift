@@ -1,3 +1,11 @@
+//
+//  Meal.swift
+//  RESTAPP
+//
+//  Created by Artem Samsonov on 01.02.2025.
+//
+
+
 import Foundation
 
 struct Meal: Codable, Hashable {

@@ -1,3 +1,10 @@
+//
+//  RestaurantSelectorViewController.swift
+//  RESTAPP
+//
+//  Created by Артём on 04.04.2025.
+//
+
 import UIKit
 import Foundation
 

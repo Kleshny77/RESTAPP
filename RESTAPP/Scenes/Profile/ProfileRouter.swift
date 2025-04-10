@@ -2,7 +2,7 @@
 //  ProfileRouter.swift
 //  RESTAPP
 //
-//  Created by Артём on 08.04.2025.
+//  Created by Артём on 30.03.2025.
 //
 
 import UIKit
@@ -11,7 +11,6 @@ import UIKit
 
 protocol ProfileRoutingLogic {
     func routeToAuth()
-    func routeToEditProfile()
 }
 
 protocol ProfileDataPassing {
@@ -32,26 +31,11 @@ final class ProfileRouter: ProfileRoutingLogic, ProfileDataPassing {
             let nav = UINavigationController(rootViewController: authVC)
             
             UIView.transition(with: window,
-                            duration: 0.3,
-                            options: .transitionCrossDissolve,
-                            animations: {
+                              duration: 0.3,
+                              options: .transitionCrossDissolve,
+                              animations: {
                 window.rootViewController = nav
             })
         }
-    }
-    
-    func routeToEditProfile() {
-//        guard let viewController = viewController else { return }
-        
-        // Создаем и настраиваем EditProfileViewController
-//        let editProfileVC = UIViewController()
-//        
-//        // Если нужно передать данные в EditProfileViewController
-//        if let userName = UserDefaults.standard.string(forKey: "userName") {
-//            editProfileVC.configure(with: userName)
-//        }
-//        
-//        // Показываем экран редактирования
-//        viewController.navigationController?.pushViewController(editProfileVC, animated: true)
     }
 }

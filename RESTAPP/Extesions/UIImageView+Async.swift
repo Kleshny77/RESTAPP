@@ -11,7 +11,6 @@ extension UIImageView {
     private static var imageCache = NSCache<NSString, UIImage>()
     
     func loadImageAsync(from urlString: String, showLoadingIndicator: Bool = true) async {
-        // Проверяем кэш
         if let cachedImage = UIImageView.imageCache.object(forKey: urlString as NSString) {
             DispatchQueue.main.async {
                 self.image = cachedImage
@@ -19,7 +18,6 @@ extension UIImageView {
             return
         }
         
-        // Показываем индикатор загрузки
         if showLoadingIndicator {
             let activityIndicator = UIActivityIndicatorView(style: .medium)
             activityIndicator.center = CGPoint(x: self.bounds.midX, y: self.bounds.midY)
@@ -41,12 +39,10 @@ extension UIImageView {
             }
             
             if let image = UIImage(data: data) {
-                // Сохраняем в кэш
                 UIImageView.imageCache.setObject(image, forKey: urlString as NSString)
                 
                 DispatchQueue.main.async {
                     self.image = image
-                    // Удаляем индикатор загрузки
                     self.subviews.forEach { view in
                         if let activityIndicator = view as? UIActivityIndicatorView {
                             activityIndicator.stopAnimating()
@@ -57,7 +53,6 @@ extension UIImageView {
             }
         } catch {
             print("Error loading image: \(error.localizedDescription)")
-            // Удаляем индикатор загрузки в случае ошибки
             DispatchQueue.main.async {
                 self.subviews.forEach { view in
                     if let activityIndicator = view as? UIActivityIndicatorView {
@@ -69,7 +64,6 @@ extension UIImageView {
         }
     }
     
-    // Метод для очистки кэша
     static func clearImageCache() {
         imageCache.removeAllObjects()
     }

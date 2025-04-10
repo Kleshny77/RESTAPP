@@ -2,69 +2,81 @@
 //  ProfileViewController.swift
 //  RESTAPP
 //
-//  Created by Артём on 03.04.2025.
+//  Created by Артём on 30.04.2025.
 //
 
 import UIKit
 
-// MARK: - ProfileDisplayLogic
-
+// MARK: – Display Logic
 protocol ProfileDisplayLogic: AnyObject {
     func displayProfile(viewModel: Profile.LoadProfile.ViewModel)
     func displayLogout(viewModel: Profile.Logout.ViewModel)
 }
 
-// MARK: - ProfileViewController
-
+// MARK: – ProfileViewController
 final class ProfileViewController: UIViewController {
-
-    // MARK: Properties
-
+    
+    // MARK: – Dependencies
     private let interactor: ProfileBusinessLogic
     private let router: ProfileRoutingLogic
     
+    // MARK: – State
+    private var userName  = ""
+    private var userEmail = ""
     private var orders: [OrderCellViewModel] = []
-    private var userName: String = ""
-    private var userEmail: String = ""
     
-    // MARK: - UI
-
+    // MARK: – UI
+    
     private lazy var tableView: UITableView = {
-        let table = UITableView(frame: .zero, style: .insetGrouped)
-        table.register(UITableViewCell.self, forCellReuseIdentifier: "OrderCell")
-        table.delegate = self
-        table.dataSource = self
-        table.translatesAutoresizingMaskIntoConstraints = false
-        return table
+        let tv = UITableView(frame: .zero, style: .insetGrouped)
+        tv.register(UITableViewCell.self,  forCellReuseIdentifier: "ProfileInfoCell")
+        tv.register(OrderHistoryCell.self, forCellReuseIdentifier: OrderHistoryCell.reuseId)
+        tv.dataSource = self
+        tv.delegate   = self
+        tv.translatesAutoresizingMaskIntoConstraints = false
+        tv.backgroundColor = .systemBackground
+        tv.separatorStyle  = .none
+        return tv
     }()
-
-    // MARK: - Lifecycle
-
+    
+    private lazy var loadingView: UIView = {
+        let overlay = UIView()
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+        overlay.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.8)
+        
+        let spinner = UIActivityIndicatorView(style: .large)
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.startAnimating()
+        
+        overlay.addSubview(spinner)
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: overlay.centerYAnchor)
+        ])
+        return overlay
+    }()
+    
+    // MARK: – Init
+    
     init(interactor: ProfileBusinessLogic, router: ProfileRoutingLogic) {
         self.interactor = interactor
-        self.router = router
+        self.router     = router
         super.init(nibName: nil, bundle: nil)
     }
-
     @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    
+    // MARK: – Lifecycle
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
-        loadData()
+        showLoading()
+        interactor.loadProfile(request: .init())
     }
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        // Обновляем данные при каждом появлении экрана
-        loadData()
-    }
-
-    // MARK: - Setup
-
+    
+    // MARK: – UI Setup
+    
     private func setupUI() {
         view.backgroundColor = .systemBackground
         title = "Профиль"
@@ -78,102 +90,109 @@ final class ProfileViewController: UIViewController {
         
         view.addSubview(tableView)
         NSLayoutConstraint.activate([
-            tableView.topAnchor.constraint(equalTo: view.topAnchor),
+            tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+        
+        view.addSubview(loadingView)
+        NSLayoutConstraint.activate([
+            loadingView.topAnchor.constraint(equalTo: view.topAnchor),
+            loadingView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            loadingView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            loadingView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
     }
-
-    private func loadData() {
-        interactor.loadProfile(request: .init())
-    }
-
+    
+    // MARK: – Loading overlay helpers
+    
+    private func showLoading()  { loadingView.isHidden = false }
+    private func hideLoading()  { loadingView.isHidden = true  }
+    
+    // MARK: – Actions
+    
     @objc private func logoutTapped() {
         let alert = UIAlertController(
             title: "Выйти из аккаунта?",
-            message: "Вы уверены, что хотите выйти?",
+            message: "Вы уверены?",
             preferredStyle: .alert
         )
-        
-        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Выйти", style: .destructive) { [weak self] _ in
+        alert.addAction(.init(title: "Отмена", style: .cancel))
+        alert.addAction(.init(title: "Выйти", style: .destructive) { [weak self] _ in
             self?.interactor.logout(request: .init())
         })
-        
         present(alert, animated: true)
     }
 }
 
-// MARK: - Display Logic
+// MARK: – ProfileDisplayLogic
 
 extension ProfileViewController: ProfileDisplayLogic {
+    
     func displayProfile(viewModel: Profile.LoadProfile.ViewModel) {
-        userName = viewModel.name
+        userName  = viewModel.name
         userEmail = viewModel.email
-        orders = viewModel.orders
-        title = viewModel.name
+        orders    = viewModel.orders
         tableView.reloadData()
+        hideLoading()
     }
     
     func displayLogout(viewModel: Profile.Logout.ViewModel) {
+        hideLoading()
         router.routeToAuth()
     }
 }
 
-// MARK: - UITableViewDataSource & UITableViewDelegate
+// MARK: – UITableViewDataSource / Delegate
 
 extension ProfileViewController: UITableViewDataSource, UITableViewDelegate {
-    func numberOfSections(in tableView: UITableView) -> Int {
-        return 2
-    }
+    
+    func numberOfSections(in tableView: UITableView) -> Int { 2 }
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        switch section {
-        case 0: return 1 // Информация профиля
-        case 1: return orders.count // История заказов
-        default: return 0
-        }
+        section == 0 ? 1 : orders.count
     }
     
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "OrderCell", for: indexPath)
+    func tableView(_ tableView: UITableView,
+                   titleForHeaderInSection section: Int) -> String? {
+        section == 0 ? "Профиль" : "История заказов"
+    }
+    
+    func tableView(_ tableView: UITableView,
+                   cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        var content = cell.defaultContentConfiguration()
-        
-        switch indexPath.section {
-        case 0:
-            content.text = userName
-            content.textProperties.font = .systemFont(ofSize: 17, weight: .semibold)
-            content.secondaryText = userEmail
-            content.secondaryTextProperties.font = .systemFont(ofSize: 14)
-            content.secondaryTextProperties.color = .systemGray
+        if indexPath.section == 0 {
+            let cell = tableView.dequeueReusableCell(
+                withIdentifier: "ProfileInfoCell", for: indexPath)
+            
+            var cfg = cell.defaultContentConfiguration()
+            cfg.text                    = userName
+            cfg.textProperties.font     = .systemFont(ofSize: 18, weight: .semibold)
+            cfg.secondaryText           = userEmail
+            cfg.secondaryTextProperties.font  = .systemFont(ofSize: 14)
+            cfg.secondaryTextProperties.color = .darkGray
+            
+            cell.contentConfiguration = cfg
             cell.selectionStyle = .none
-            
-        case 1:
-            let order = orders[indexPath.row]
-            content.text = order.date
-            content.secondaryText = "\(order.items)\nИтого: \(order.total)"
-            content.secondaryTextProperties.numberOfLines = 0
-            cell.accessoryType = .none
-            
-        default:
-            break
+            return cell
         }
         
-        cell.contentConfiguration = content
+        let vm = orders[indexPath.row]
+        guard let cell = tableView.dequeueReusableCell(
+            withIdentifier: OrderHistoryCell.reuseId,
+            for: indexPath) as? OrderHistoryCell else {
+            
+            return UITableViewCell(style: .default, reuseIdentifier: nil)
+        }
+        
+        let info = "\(vm.totalText) · \(vm.restaurantName)"
+        cell.configure(date: vm.dateText, info: info, imageURLs: vm.itemImageURLs)
         return cell
     }
     
-    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        switch section {
-        case 0: return "Профиль"
-        case 1: return "История заказов"
-        default: return nil
-        }
-    }
-    
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    func tableView(_ tableView: UITableView,
+                   didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
     }
 }

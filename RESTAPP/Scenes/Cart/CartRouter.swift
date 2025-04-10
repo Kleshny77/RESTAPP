@@ -29,14 +29,13 @@ final class CartRouter: NSObject, CartRoutingLogic, CartDataPassing {
     func routeToMealDetail(meal: Meal) {
         let vc = MealDetailAssembly.build(with: meal)
         if let sheet = vc.sheetPresentationController {
-            sheet.detents = [.medium()]
+            sheet.detents = [.large()]
             sheet.prefersGrabberVisible = true
         }
         viewController?.present(vc, animated: true)
     }
     
     func routeToPayment() {
-        // 1. Собираем корзину в OrderItem
         let items: [OrderItem] = CartService.shared.getAllItems().map { entry in
             OrderItem(
                 mealId:   entry.meal.id,
@@ -45,12 +44,10 @@ final class CartRouter: NSObject, CartRoutingLogic, CartDataPassing {
                 quantity: entry.count
             )
         }
-        // 2. Текущий ресторан
         guard let restaurantId = RestaurantService.shared.currentRestaurant?.id else {
             print("Не выбран ресторан")
             return
         }
-        // 3. Собираем и показываем экран оплаты
         let paymentVC = PaymentAssembly.build(
             items: items,
             restaurantId: restaurantId

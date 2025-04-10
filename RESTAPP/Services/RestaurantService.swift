@@ -1,14 +1,66 @@
+//
+//  RestaurantService.swift
+//  RESTAPP
+//
+//  Created by Артём on 29.03.2025.
+//
+
 import Foundation
 import FirebaseFirestore
 
-class RestaurantService {
+final class RestaurantService {
     static let shared = RestaurantService()
     private let db = Firestore.firestore()
     
-    // Текущий выбранный ресторан
     @Published private(set) var currentRestaurant: Restaurant?
     
     private init() {}
+    
+    private var restaurantNames: [String: String] = [:]
+    
+    func fetchRestaurantName(id: String) async throws -> String {
+        if let name = restaurantNames[id] {
+            return name
+        }
+        
+        let doc = try await db.collection("restaurants").document(id).getDocument()
+        guard let data = doc.data(),
+              let name = data["name"] as? String else {
+            throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Не удалось получить название ресторана"])
+        }
+        
+        restaurantNames[id] = name
+        return name
+    }
+    
+    func fetchRestaurantNames(ids: [String]) async throws -> [String: String] {
+        var result: [String: String] = [:]
+        
+        let uncachedIds = ids.filter { !restaurantNames.keys.contains($0) }
+        
+        if !uncachedIds.isEmpty {
+            let chunks = uncachedIds.chunked(into: 10)
+            for chunk in chunks {
+                let snapshot = try await db.collection("restaurants")
+                    .whereField(FieldPath.documentID(), in: chunk)
+                    .getDocuments()
+                
+                for doc in snapshot.documents {
+                    if let name = doc.data()["name"] as? String {
+                        restaurantNames[doc.documentID] = name
+                    }
+                }
+            }
+        }
+        
+        for id in ids {
+            if let name = restaurantNames[id] {
+                result[id] = name
+            }
+        }
+        
+        return result
+    }
     
     func fetchRestaurants() async throws -> [Restaurant] {
         let snapshot = try await db.collection("restaurants").getDocuments()
@@ -77,22 +129,18 @@ class RestaurantService {
         )
     }
     
-    // Установить текущий ресторан
     func setCurrentRestaurant(_ restaurant: Restaurant) {
         currentRestaurant = restaurant
         // Сохраняем выбор пользователя
         UserDefaults.standard.set(restaurant.id, forKey: "selectedRestaurantId")
     }
     
-    // Загрузить последний выбранный ресторан
     func loadLastSelectedRestaurant() async throws {
-        // Пробуем загрузить сохраненный ресторан
         if let savedId = UserDefaults.standard.string(forKey: "selectedRestaurantId") {
             currentRestaurant = try await fetchRestaurant(id: savedId)
             return
         }
         
-        // Если нет сохраненного или его не удалось загрузить, берем первый из списка
         let restaurants = try await fetchRestaurants()
         if let firstRestaurant = restaurants.first {
             currentRestaurant = firstRestaurant
@@ -100,3 +148,14 @@ class RestaurantService {
         }
     }
 }
+
+// MARK: - Helpers
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
+    }
+}
+

@@ -1,3 +1,11 @@
+//
+//  Restaurant.swift
+//  RESTAPP
+//
+//  Created by Artem Samsonov on 04.02.2025.
+//
+
+
 import Foundation
 
 struct Restaurant: Codable {
@@ -7,7 +15,7 @@ struct Restaurant: Codable {
     
     struct OpeningHours: Codable {
         struct DaySchedule: Codable {
-            let open: String?  // nil означает, что в этот день заведение не работает
+            let open: String?
             let close: String?
         }
         
@@ -19,7 +27,6 @@ struct Restaurant: Codable {
         let saturday: DaySchedule
         let sunday: DaySchedule
         
-        // Преобразует строку времени в минуты от начала дня
         private func timeToMinutes(_ timeString: String?) -> Int? {
             guard let timeString = timeString else { return nil }
             let components = timeString.split(separator: ":")
@@ -30,7 +37,6 @@ struct Restaurant: Codable {
             return hours * 60 + minutes
         }
         
-        // Получаем расписание для конкретного дня недели
         private func scheduleForWeekday(_ weekday: Int) -> DaySchedule {
             switch weekday {
             case 2: return monday
@@ -40,20 +46,17 @@ struct Restaurant: Codable {
             case 6: return friday
             case 7: return saturday
             case 1: return sunday
-            default: return monday // fallback на понедельник
+            default: return monday
             }
         }
         
-        // Проверяет, находится ли текущее время в диапазоне работы
         var isCurrentlyOpen: Bool {
             let calendar = Calendar.current
             let now = Date()
             
-            // Получаем текущий день недели (1 = воскресенье, 2 = понедельник, и т.д.)
             let weekday = calendar.component(.weekday, from: now)
             let schedule = scheduleForWeekday(weekday)
             
-            // Если для текущего дня нет расписания, значит заведение закрыто
             guard let openTime = schedule.open,
                   let closeTime = schedule.close else {
                 return false
@@ -65,7 +68,6 @@ struct Restaurant: Codable {
             let openMinutes = timeToMinutes(openTime) ?? 0
             let closeMinutes = timeToMinutes(closeTime) ?? 0
             
-            // Если время закрытия меньше времени открытия, значит ресторан работает до следующего дня
             if closeMinutes < openMinutes {
                 return currentMinutes >= openMinutes || currentMinutes <= closeMinutes
             } else {
@@ -73,7 +75,6 @@ struct Restaurant: Codable {
             }
         }
         
-        // Возвращает строку с расписанием на текущий день
         var currentDaySchedule: String {
             let calendar = Calendar.current
             let weekday = calendar.component(.weekday, from: Date())
@@ -86,7 +87,6 @@ struct Restaurant: Codable {
             }
         }
         
-        // Возвращает полное расписание в виде строки
         var fullSchedule: String {
             var schedule = [String]()
             

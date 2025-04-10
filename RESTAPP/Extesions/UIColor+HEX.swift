@@ -2,7 +2,7 @@
 //  UIColor+HEX.swift
 //  RESTAPP
 //
-//  Created by Артём on 02.04.2025.
+//  Created by Артём on 01.04.2025.
 //
 
 import UIKit

@@ -53,11 +53,13 @@ final class MainInteractor: MainBusinessLogic {
             do {
                 let restaurants = try await firebaseService.fetchRestaurants()
                 if let restaurant = restaurants.first(where: { $0.id == request.restaurantId }) {
+                    
+                    CartService.shared.clear()
                     restaurantService.setCurrentRestaurant(restaurant)
+                    
                     let response = Main.SelectRestaurant.Response(selectedRestaurant: restaurant)
                     await MainActor.run {
                         presenter?.presentSelectedRestaurant(response: response)
-                        // После выбора ресторана перезагружаем меню
                         loadFood(request: .init())
                     }
                 }

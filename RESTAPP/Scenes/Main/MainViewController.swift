@@ -2,12 +2,11 @@
 //  MainViewController.swift
 //  RESTAPP
 //
-//  Created by Артём on 28.03.2025.
+//  Created by Артём on 29.03.2025.
 //
 
 import UIKit
 import Foundation
-//import SDWebImage
 
 // MARK: – DisplayLogic
 protocol MainDisplayLogic: AnyObject {
@@ -25,21 +24,22 @@ private enum Item: Hashable {
     case meal(Meal)
 }
 
-final class MainViewController: UIViewController, MainDisplayLogic {
-    
-    // MARK: DI
+// MARK: – MainViewController
+final class MainViewController: UIViewController {
     private let interactor: MainBusinessLogic
     private let router: (NSObjectProtocol & MainRoutingLogic)
     
+    // MARK: – Init
     init(interactor: MainBusinessLogic,
          router: (NSObjectProtocol & MainRoutingLogic)) {
         self.interactor = interactor
-        self.router = router
+        self.router     = router
         super.init(nibName: nil, bundle: nil)
     }
-    required init?(coder: NSCoder) { fatalError() }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     
-    // MARK: UI
+    // MARK: – UI
+    
     private var collectionView: UICollectionView!
     private var dataSource: UICollectionViewDiffableDataSource<Section, Item>!
     private var cartButtonWidthConstraint: NSLayoutConstraint?
@@ -49,9 +49,27 @@ final class MainViewController: UIViewController, MainDisplayLogic {
         b.translatesAutoresizingMaskIntoConstraints = false
         b.setImage(UIImage(systemName: "cart.fill"), for: .normal)
         b.tintColor = .white
-        b.backgroundColor = UIColor(hex: "FF9700")
+        b.backgroundColor = UIColor(hex: "35C759")
         b.layer.cornerRadius = 30
         return b
+    }()
+    
+    private lazy var loadingView: UIView = {
+        let overlay = UIView()
+        overlay.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.8)
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+        overlay.isHidden = true
+        
+        let spinner = UIActivityIndicatorView(style: .large)
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.startAnimating()
+        overlay.addSubview(spinner)
+        
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: overlay.centerYAnchor)
+        ])
+        return overlay
     }()
     
     private lazy var closedOverlay: UIView = {
@@ -73,20 +91,16 @@ final class MainViewController: UIViewController, MainDisplayLogic {
         let label = UILabel()
         label.translatesAutoresizingMaskIntoConstraints = false
         label.text = "Извините, сейчас заведение закрыто"
-        label.textAlignment = .center
         label.font = .systemFont(ofSize: 17, weight: .medium)
+        label.textAlignment = .center
         label.textColor = .systemGray
         label.numberOfLines = 0
         
         let scheduleLabel = UILabel()
         scheduleLabel.translatesAutoresizingMaskIntoConstraints = false
-        scheduleLabel.textAlignment = .left
         scheduleLabel.font = .systemFont(ofSize: 15)
         scheduleLabel.textColor = .systemGray2
         scheduleLabel.numberOfLines = 0
-        if let restaurant = RestaurantService.shared.currentRestaurant {
-            scheduleLabel.text = "Расписание работы:\n\n\(restaurant.openingHours.fullSchedule)"
-        }
         
         container.addSubview(imageView)
         container.addSubview(label)
@@ -113,82 +127,95 @@ final class MainViewController: UIViewController, MainDisplayLogic {
             scheduleLabel.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -24)
         ])
         
+        view.accessibilityElements = [scheduleLabel]
         return view
     }()
     
-    // MARK: State
+    // MARK: – State
     private var sections: [Section] = []
     private var isRestaurantOpen: Bool = false {
-        didSet {
-            updateClosedState()
-        }
+        didSet { updateClosedState() }
     }
     
-    // MARK: Lifecycle
+    // MARK: – Life‑cycle
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
+        
         configureNavBar()
         makeCollectionView()
         makeCartButton()
         setupClosedOverlay()
+        setupLoadingOverlay()
         
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(cartDidChange),
-            name: .cartDidChange,
-            object: nil
-        )
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(cartDidChange),
+                                               name: .cartDidChange,
+                                               object: nil)
         
-        // Загружаем последний выбранный ресторан
+        showLoading()
+        
         Task {
             do {
                 try await RestaurantService.shared.loadLastSelectedRestaurant()
                 if let restaurant = RestaurantService.shared.currentRestaurant {
-                    if let button = navigationItem.titleView as? UIButton {
-                        button.setTitle(restaurant.name, for: .normal)
-                    }
+                    (navigationItem.titleView as? UIButton)?.setTitle(restaurant.name, for: .normal)
                     isRestaurantOpen = restaurant.isOpen
                 }
-                // Загружаем данные
                 interactor.loadFood(request: .init())
             } catch {
-                print("Error loading last restaurant: \(error)")
-                // Если не удалось загрузить последний ресторан, все равно пытаемся загрузить данные
+                print("Error loading last restaurant:", error)
                 interactor.loadFood(request: .init())
             }
         }
         
-        // Запускаем таймер для проверки статуса открытия
         startOpenStatusTimer()
     }
     
-    // MARK: – NavBar + Shadow
+    // MARK: – Loading overlay helpers
+    private func setupLoadingOverlay() {
+        view.addSubview(loadingView)
+        NSLayoutConstraint.activate([
+            loadingView.topAnchor.constraint(equalTo: view.topAnchor),
+            loadingView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            loadingView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            loadingView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+    }
+    private func showLoading() {
+        loadingView.alpha = 0
+        loadingView.isHidden = false
+        UIView.animate(withDuration: 0.25) { self.loadingView.alpha = 1 }
+    }
+    private func hideLoading() {
+        UIView.animate(withDuration: 0.25, animations: {
+            self.loadingView.alpha = 0
+        }) { _ in self.loadingView.isHidden = true }
+    }
+    
+    // MARK: – NavBar
     private func configureNavBar() {
-        // 1. Формируем конфигурацию
         var config = UIButton.Configuration.plain()
-        config.title = RestaurantService.shared.currentRestaurant?.name ?? "Загрузка столовых..."
-        config.image = UIImage(systemName: "chevron.down")
-        config.imagePlacement = .trailing
-        config.imagePadding = 4
-        config.contentInsets = .init(top: 0, leading: 0, bottom: 0, trailing: 0)
-
-        // 2. Создаём кнопку с конфигурацией
+        config.title           = RestaurantService.shared.currentRestaurant?.name
+        ?? "Загрузка столовых…"
+        config.image           = UIImage(systemName: "chevron.down")
+        config.imagePlacement  = .trailing
+        config.imagePadding    = 4
+        config.contentInsets   = .init(top: 0, leading: 0, bottom: 0, trailing: 0)
+        
         let restaurantButton = UIButton(configuration: config, primaryAction: nil)
         restaurantButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
-        restaurantButton.addTarget(self, action: #selector(restaurantButtonTapped), for: .touchUpInside)
+        restaurantButton.addTarget(self,
+                                   action: #selector(restaurantButtonTapped),
+                                   for: .touchUpInside)
         
-        // 3. Настраиваем обрезание длинного текста
-        restaurantButton.titleLabel?.lineBreakMode = .byTruncatingTail
-        restaurantButton.titleLabel?.numberOfLines = 1
-        
-        // 4. Ограничиваем максимальную ширину кнопки
-        let maxWidth = UIScreen.main.bounds.width * 0.7 // 70% от ширины экрана
-        restaurantButton.widthAnchor.constraint(lessThanOrEqualToConstant: maxWidth).isActive = true
-        
-        // 5. Настраиваем приоритеты сжатия и растяжения
+        restaurantButton.titleLabel?.lineBreakMode  = .byTruncatingTail
+        restaurantButton.titleLabel?.numberOfLines  = 1
+        let maxWidth = UIScreen.main.bounds.width * 0.7
+        restaurantButton.widthAnchor
+            .constraint(lessThanOrEqualToConstant: maxWidth).isActive = true
         restaurantButton.setContentCompressionResistancePriority(.required, for: .horizontal)
-        restaurantButton.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        restaurantButton.setContentHuggingPriority(.defaultLow,              for: .horizontal)
         
         navigationItem.titleView = restaurantButton
         navigationItem.rightBarButtonItem = UIBarButtonItem(
@@ -197,37 +224,35 @@ final class MainViewController: UIViewController, MainDisplayLogic {
             target: self,
             action: #selector(profileTapped)
         )
-
+        
         let appearance = UINavigationBarAppearance()
         appearance.configureWithOpaqueBackground()
         appearance.backgroundColor = .systemBackground
-        appearance.shadowColor = UIColor.black.withAlphaComponent(0.26)
+        appearance.shadowColor     = UIColor.black.withAlphaComponent(0.26)
         
-        navigationController?.navigationBar.standardAppearance = appearance
+        navigationController?.navigationBar.standardAppearance   = appearance
         navigationController?.navigationBar.scrollEdgeAppearance = appearance
-        navigationController?.navigationBar.compactAppearance = appearance
-        navigationController?.navigationBar.tintColor = .black
+        navigationController?.navigationBar.compactAppearance    = appearance
+        navigationController?.navigationBar.tintColor            = .black
     }
     
     @objc private func restaurantButtonTapped() {
         interactor.loadRestaurants(request: .init())
     }
     
-    // MARK: – CollectionView
     private func makeCollectionView() {
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: makeLayout())
+        collectionView.translatesAutoresizingMaskIntoConstraints = false
         collectionView.backgroundColor = .systemBackground
         collectionView.delegate = self
-        collectionView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(collectionView)
         
-        collectionView.canCancelContentTouches = false
-        collectionView.pinHorizontal(to: view)
-        collectionView.pinBottom(to: view)
         collectionView.pinTop(to: view.safeAreaLayoutGuide)
+        collectionView.pinLeft(to: view)
+        collectionView.pinRight(to: view)
+        collectionView.pinBottom(to: view)
         
-        collectionView.register(MainMealCell.self,
-                                forCellWithReuseIdentifier: MainMealCell.reuseID)
+        collectionView.register(MainMealCell.self, forCellWithReuseIdentifier: MainMealCell.reuseID)
         collectionView.register(SectionHeader.self,
                                 forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
                                 withReuseIdentifier: SectionHeader.reuseID)
@@ -240,12 +265,10 @@ final class MainViewController: UIViewController, MainDisplayLogic {
         
         dataSource.supplementaryViewProvider = { [weak self] cv, kind, indexPath in
             guard kind == UICollectionView.elementKindSectionHeader,
-                  let header = cv.dequeueReusableSupplementaryView(
-                    ofKind: kind,
-                    withReuseIdentifier: SectionHeader.reuseID,
-                    for: indexPath) as? SectionHeader,
-                  let section = self?.sections[indexPath.section]
-            else { return nil }
+                  let header = cv.dequeueReusableSupplementaryView(ofKind: kind,
+                                                                   withReuseIdentifier: SectionHeader.reuseID,
+                                                                   for: indexPath) as? SectionHeader,
+                  let section = self?.sections[indexPath.section] else { return nil }
             header.title = section.title
             return header
         }
@@ -264,19 +287,13 @@ final class MainViewController: UIViewController, MainDisplayLogic {
         
         let headerSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
                                                 heightDimension: .estimated(44))
-        let header = NSCollectionLayoutBoundarySupplementaryItem(
-            layoutSize: headerSize,
-            elementKind: UICollectionView.elementKindSectionHeader,
-            alignment: .topLeading)
-        header.pinToVisibleBounds = false
-        header.contentInsets = .init(top: 0, leading: 16, bottom: 0, trailing: 16)
-        
+        let header = NSCollectionLayoutBoundarySupplementaryItem(layoutSize: headerSize,
+                                                                 elementKind: UICollectionView.elementKindSectionHeader,
+                                                                 alignment: .topLeading)
         section.boundarySupplementaryItems = [header]
-        let config = UICollectionViewCompositionalLayoutConfiguration()
-        return UICollectionViewCompositionalLayout(section: section, configuration: config)
+        return UICollectionViewCompositionalLayout(section: section)
     }
     
-    // MARK: – Cart FAB
     private func makeCartButton() {
         view.addSubview(cartButton)
         cartButton.pinBottom(to: view.safeAreaLayoutGuide)
@@ -287,26 +304,16 @@ final class MainViewController: UIViewController, MainDisplayLogic {
     }
     
     @objc private func cartDidChange() {
-        for ip in collectionView.indexPathsForVisibleItems {
-            guard let cell = collectionView.cellForItem(at: ip) as? MainMealCell else { continue }
-            let meal = sections[ip.section].meals[ip.item]
+        for path in collectionView.indexPathsForVisibleItems {
+            guard let cell = collectionView.cellForItem(at: path) as? MainMealCell else { continue }
+            let meal = sections[path.section].meals[path.item]
             let newCount = CartService.shared.getAllItems().first { $0.meal == meal }?.count ?? 0
-            if newCount > 0 {
-                cell.updateCounter(to: newCount)
-            } else {
-                cell.resetToPriceButton()
-            }
+            newCount > 0 ? cell.updateCounter(to: newCount) : cell.resetToPriceButton()
         }
         
-        let items = CartService.shared.getAllItems()
-        let totalCount = items.reduce(0) { $0 + $1.count }
-        let totalPrice = items.reduce(0) { $0 + $1.count * $1.meal.price }
-        
-        if totalCount > 0 {
-            activateCartButton(count: totalCount, price: totalPrice)
-        } else {
-            deactivateCartButton()
-        }
+        let totalCount = CartService.shared.getAllItems().reduce(0) { $0 + $1.count }
+        let totalPrice = CartService.shared.getAllItems().reduce(0) { $0 + $1.count * $1.meal.price }
+        totalCount > 0 ? activateCartButton(count: totalCount, price: totalPrice) : deactivateCartButton()
     }
     
     private func activateCartButton(count: Int, price: Int) {
@@ -314,28 +321,19 @@ final class MainViewController: UIViewController, MainDisplayLogic {
         cartButton.setTitle("\(price) ₽", for: .normal)
         cartButton.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
         cartButtonWidthConstraint?.constant = 100
-        
         UIView.animate(withDuration: 0.3,
                        delay: 0,
                        usingSpringWithDamping: 0.7,
-                       initialSpringVelocity: 0.8,
-                       options: [.allowUserInteraction]) {
-            self.view.layoutIfNeeded()
-        }
+                       initialSpringVelocity: 0.8) { self.view.layoutIfNeeded() }
     }
-    
     private func deactivateCartButton() {
         cartButton.setTitle(nil, for: .normal)
         cartButton.setImage(UIImage(systemName: "cart.fill"), for: .normal)
         cartButtonWidthConstraint?.constant = 60
-        
         UIView.animate(withDuration: 0.3,
                        delay: 0,
                        usingSpringWithDamping: 0.7,
-                       initialSpringVelocity: 0.8,
-                       options: [.allowUserInteraction]) {
-            self.view.layoutIfNeeded()
-        }
+                       initialSpringVelocity: 0.8) { self.view.layoutIfNeeded() }
     }
     
     private func setupClosedOverlay() {
@@ -347,57 +345,51 @@ final class MainViewController: UIViewController, MainDisplayLogic {
             closedOverlay.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
         
-        // Устанавливаем начальное состояние
-        if let restaurant = RestaurantService.shared.currentRestaurant {
+        if let restaurant = RestaurantService.shared.currentRestaurant,
+           let scheduleLabel = closedOverlay.accessibilityElements?.first as? UILabel {
             isRestaurantOpen = restaurant.isOpen
-            if let scheduleLabel = closedOverlay.subviews.first?.subviews.last as? UILabel {
-                scheduleLabel.text = "Расписание работы:\n\n\(restaurant.openingHours.fullSchedule)"
-            }
+            scheduleLabel.text = "Расписание работы:\n\n\(restaurant.openingHours.fullSchedule)"
         }
     }
     
     private func updateClosedState() {
-        // Анимируем изменение видимости оверлея
         UIView.animate(withDuration: 0.3) {
             self.closedOverlay.alpha = self.isRestaurantOpen ? 0 : 1
         } completion: { _ in
             self.closedOverlay.isHidden = self.isRestaurantOpen
         }
-        
-        // Обновляем доступность элементов управления
         collectionView.isUserInteractionEnabled = isRestaurantOpen
         cartButton.isEnabled = isRestaurantOpen
-        
-        // Обновляем расписание в оверлее
-        if !isRestaurantOpen, 
-           let restaurant = RestaurantService.shared.currentRestaurant,
-           let scheduleLabel = closedOverlay.subviews.first?.subviews.last as? UILabel {
-            scheduleLabel.text = "Расписание работы:\n\n\(restaurant.openingHours.fullSchedule)"
-        }
     }
     
     private func startOpenStatusTimer() {
-        // Проверяем статус каждую минуту
         Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            if let restaurant = RestaurantService.shared.currentRestaurant {
-                let wasOpen = self.isRestaurantOpen
-                self.isRestaurantOpen = restaurant.isOpen
-                
-                // Если статус изменился, обновляем UI
-                if wasOpen != self.isRestaurantOpen {
-                    self.updateClosedState()
-                }
+            guard let self = self,
+                  let restaurant = RestaurantService.shared.currentRestaurant else { return }
+            let previous = self.isRestaurantOpen
+            self.isRestaurantOpen = restaurant.isOpen
+            if previous != self.isRestaurantOpen {
+                self.updateClosedState()
             }
         }
     }
-    
-    // MARK: – DisplayLogic
+}
+
+// MARK: – UICollectionViewDelegate
+extension MainViewController: UICollectionViewDelegate {
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        let meal = sections[indexPath.section].meals[indexPath.item]
+        router.routeToMealDetail(meal: meal)
+    }
+}
+
+// MARK: – MainDisplayLogic
+extension MainViewController: MainDisplayLogic {
     func displayFood(viewModel: Main.LoadFood.ViewModel) {
+        hideLoading()
         sections = zip(viewModel.categories, viewModel.domainCategories).map { vm, domain in
             Section(title: vm.title, meals: domain.meals)
         }
-        
         var snap = NSDiffableDataSourceSnapshot<Section, Item>()
         for sec in sections {
             snap.appendSections([sec])
@@ -407,68 +399,72 @@ final class MainViewController: UIViewController, MainDisplayLogic {
     }
     
     func displayRestaurants(viewModel: Main.LoadRestaurants.ViewModel) {
-        let restaurantSelector = RestaurantSelectorViewController()
-        restaurantSelector.delegate = self
-        
-        // Получаем рестораны из RestaurantService
+        let selector = RestaurantSelectorViewController()
+        selector.delegate = self
         Task {
             do {
                 let restaurants = try await RestaurantService.shared.fetchRestaurants()
                 await MainActor.run {
-                    restaurantSelector.configure(with: restaurants)
-                    let nav = UINavigationController(rootViewController: restaurantSelector)
+                    selector.configure(with: restaurants)
+                    let nav = UINavigationController(rootViewController: selector)
                     self.present(nav, animated: true)
                 }
-            } catch {
-                print("Error loading restaurants: \(error)")
-            }
+            } catch { print("Error loading restaurants: \(error)") }
         }
     }
     
     func displaySelectedRestaurant(viewModel: Main.SelectRestaurant.ViewModel) {
-        if let button = navigationItem.titleView as? UIButton {
-            button.setTitle(viewModel.name, for: .normal)
-        }
-        
-        // Обновляем статус открытия ресторана
-        if let restaurant = RestaurantService.shared.currentRestaurant {
-            isRestaurantOpen = restaurant.isOpen
-            
-            // Обновляем текст в оверлее
-            if let scheduleLabel = closedOverlay.subviews.first?.subviews.last as? UILabel {
-                scheduleLabel.text = "Расписание работы:\n\n\(restaurant.openingHours.fullSchedule)"
-            }
+        (navigationItem.titleView as? UIButton)?.setTitle(viewModel.name, for: .normal)
+        showLoading()
+    }
+}
+
+// MARK: – RestaurantSelectorDelegate
+extension MainViewController: RestaurantSelectorDelegate {
+    func restaurantSelectorDidSelect(_ restaurant: Restaurant) {
+        interactor.selectRestaurant(request: .init(restaurantId: restaurant.id))
+        isRestaurantOpen = restaurant.isOpen
+        if let scheduleLabel = closedOverlay.accessibilityElements?.first as? UILabel {
+            scheduleLabel.text = "Расписание работы:\n\n\(restaurant.openingHours.fullSchedule)"
         }
     }
 }
 
-// MARK: – UICollectionViewDelegate
-extension MainViewController: UICollectionViewDelegate {
-    func collectionView(_ cv: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        let meal = sections[indexPath.section].meals[indexPath.item]
-        router.routeToMealDetail(meal: meal)
-    }
-}
-
-// MARK: – Actions
+// MARK: – Button targets
 @objc private extension MainViewController {
     func cartTapped()    { router.routeToCart() }
     func profileTapped() { router.routeToProfile() }
 }
 
+// MARK: – BouncyButton
+final class BouncyButton: UIButton {
+    override var isHighlighted: Bool {
+        didSet { animate(isHighlighted) }
+    }
+    private func animate(_ pressed: Bool) {
+        UIView.animate(withDuration: 0.4,
+                       delay: 0,
+                       options: [.curveEaseOut, .allowUserInteraction]) {
+            self.transform = pressed ? CGAffineTransform(scaleX: 0.94, y: 0.94) : .identity
+            self.alpha = pressed ? 0.8 : 1.0
+        }
+    }
+}
+
+// MARK: – SectionHeader
 final class SectionHeader: UICollectionReusableView {
     
     static let reuseID = "SectionHeader"
-    
     private let backgroundContainer: UIView = {
         let v = UIView()
-        v.backgroundColor = UIColor.systemBackground // <-- любой фон
+        v.backgroundColor = .systemBackground
         return v
     }()
     
     private let label: UILabel = {
         let l = UILabel()
         l.font = .systemFont(ofSize: 20, weight: .medium)
+        l.textColor = .label
         return l
     }()
     
@@ -477,62 +473,29 @@ final class SectionHeader: UICollectionReusableView {
         set { label.text = newValue }
     }
     
+    // MARK: init
     override init(frame: CGRect) {
         super.init(frame: frame)
         
         addSubview(backgroundContainer)
-        backgroundContainer.pinVertical(to: self)
-        backgroundContainer.pinHorizontal(to: self, -32)
+        backgroundContainer.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            backgroundContainer.topAnchor.constraint(equalTo: topAnchor),
+            backgroundContainer.bottomAnchor.constraint(equalTo: bottomAnchor),
+            backgroundContainer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: -32),
+            backgroundContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 32)
+        ])
         
         backgroundContainer.addSubview(label)
-        label.pinTop(to: backgroundContainer, 2)
-        label.pinBottom(to: backgroundContainer)
-        label.pinHorizontal(to: backgroundContainer, 20)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: backgroundContainer.leadingAnchor, constant: 20),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: backgroundContainer.trailingAnchor),
+            label.topAnchor.constraint(equalTo: backgroundContainer.topAnchor, constant: 2),
+            label.bottomAnchor.constraint(equalTo: backgroundContainer.bottomAnchor, constant: -2)
+        ])
     }
     
-    required init?(coder: NSCoder) { fatalError() }
-}
-
-extension UIImage {
-    convenience init?(color: UIColor, size: CGSize = CGSize(width: 1, height: 1)) {
-        let rect = CGRect(origin: .zero, size: size)
-        UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
-        color.setFill()
-        UIRectFill(rect)
-        let image = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
-        guard let cgImage = image?.cgImage else { return nil }
-        self.init(cgImage: cgImage)
-    }
-}
-
-final class BouncyButton: UIButton {
-    override var isHighlighted: Bool {
-        didSet { animate(isHighlighted) }
-    }
-    
-    private func animate(_ pressed: Bool) {
-        UIView.animate(withDuration: 0.4,
-                       delay: 0,
-                       options: [.curveEaseOut, .allowUserInteraction],
-                       animations: {
-            self.transform = pressed ? CGAffineTransform(scaleX: 0.94, y: 0.94) : .identity
-            self.alpha = pressed ? 0.8 : 1.0
-        })
-    }
-}
-
-// MARK: - RestaurantSelectorDelegate
-extension MainViewController: RestaurantSelectorDelegate {
-    func restaurantSelectorDidSelect(_ restaurant: Restaurant) {
-        interactor.selectRestaurant(request: .init(restaurantId: restaurant.id))
-        
-        // Сразу обновляем статус открытия
-        isRestaurantOpen = restaurant.isOpen
-        
-        // Обновляем текст в оверлее
-        if let scheduleLabel = closedOverlay.subviews.first?.subviews.last as? UILabel {
-            scheduleLabel.text = "Расписание работы:\n\n\(restaurant.openingHours.fullSchedule)"
-        }
-    }
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }

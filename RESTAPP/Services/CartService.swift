@@ -2,49 +2,49 @@
 //  CartService.swift
 //  RESTAPP
 //
-//  Created by Артём on 04.04.2025.
+//  Created by Артём on 27.03.2025.
 //
 
 import UIKit
 
-// MARK: - CartService
 
-// CartService.swift
 final class CartService {
 
     static let shared = CartService()
 
-    /// хранит: блюдо → (count, addedAt)
     private var storage: [Meal: (count: Int, addedAt: Date)] = [:]
 
-    // MARK: – Public API -------------------------------------------------
-
-    /// +1 к количеству / или добавляем новое со временем «сейчас»
     func add(meal: Meal) {
-        if let tuple = storage[meal] {
-            storage[meal] = (tuple.count + 1, tuple.addedAt)
+        if let old = storage[meal] {
+            let new = old.count + 1
+            storage[meal] = (new, old.addedAt)
+            notifyChange(meal: meal, count: new)
         } else {
             storage[meal] = (1, Date())
+            notifyChange(meal: meal, count: 1)
         }
-        notifyChange()
     }
 
-    /// −1; если стало 0 – удаляем совсем
     func remove(meal: Meal) {
-        guard let tuple = storage[meal] else { return }
-
-        let newCount = tuple.count - 1
-        if newCount > 0 {
-            storage[meal] = (newCount, tuple.addedAt)
+        guard let old = storage[meal] else { return }
+        let new = old.count - 1
+        if new > 0 {
+            storage[meal] = (new, old.addedAt)
         } else {
             storage.removeValue(forKey: meal)
         }
-        notifyChange()
+        notifyChange(meal: meal, count: max(new, 0))
     }
 
-    func clear() { storage.removeAll() }
+    func clear() {
+            storage.removeAll()
+            NotificationCenter.default.post(
+                name: .cartDidChange,
+                object: nil,
+                userInfo: ["total": 0]
+            )
+        }
 
-    /// ***Гарантированный порядок: старые → новые***
     func getAllItems() -> [(meal: Meal, count: Int, addedAt: Date)] {
         storage
             .map { ($0.key, $0.value.count, $0.value.addedAt) }
@@ -55,11 +55,13 @@ final class CartService {
         storage.reduce(0) { $0 + Int($1.key.price) * $1.value.count }
     }
     
-    private func notifyChange() {
+    private func notifyChange(meal: Meal, count: Int) {
         NotificationCenter.default.post(
             name: .cartDidChange,
-            object: nil
+            object: nil,
+            userInfo: ["mealId": meal.id,
+                       "newCount": count,
+                       "total": totalPrice]
         )
     }
 }
-

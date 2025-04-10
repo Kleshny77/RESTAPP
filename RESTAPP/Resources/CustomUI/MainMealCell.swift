@@ -1,6 +1,8 @@
 //
-//  MealCell.swift
+//  MainMealCell.swift
 //  RESTAPP
+//
+//  Created by Артём on 29.03.2025.
 //
 
 import UIKit
@@ -8,14 +10,14 @@ import SDWebImage
 
 // MARK: – MealCell
 final class MainMealCell: UICollectionViewCell {
-
+    
     static let reuseID = "MainMealCell"
     override var isHighlighted: Bool {
         didSet {
             animateHighlight(isHighlighted)
         }
     }
-
+    
     private func animateHighlight(_ isPressed: Bool) {
         UIView.animate(withDuration: 0.2,
                        delay: 0,
@@ -25,9 +27,8 @@ final class MainMealCell: UICollectionViewCell {
             self.alpha = isPressed ? 0.8 : 1.0
         })
     }
+    
     // MARK: UI‑элементы
-
-    /// Фото блюда
     private let imageView: UIImageView = {
         let iv = UIImageView()
         iv.contentMode       = .scaleAspectFill
@@ -35,8 +36,7 @@ final class MainMealCell: UICollectionViewCell {
         iv.layer.cornerRadius = 12
         return iv
     }()
-
-    /// Название (до 2-х строк, остривается …)
+    
     private let nameLabel: UILabel = {
         let l = UILabel()
         l.font           = .systemFont(ofSize: 14, weight: .regular)
@@ -44,23 +44,21 @@ final class MainMealCell: UICollectionViewCell {
         l.lineBreakMode  = .byTruncatingTail
         return l
     }()
-
-    /// Вес (смотрим, ровно 1 строка ли занято, иначе скрываем)
+    
     private let weightLabel: UILabel = {
         let l = UILabel()
         l.font      = .systemFont(ofSize: 12, weight: .medium)
         l.textColor = .gray
         return l
     }()
-
-    /// Кнопка "цена ₽ +"
+    
     private let priceButton: HighlightButton = {
         let b = HighlightButton(type: .custom)
         b.backgroundColor   = UIColor(hex: "F2F2F2")
         b.layer.cornerRadius = 14
         return b
     }()
-
+    
     private let priceLabel: UILabel = {
         let l = UILabel()
         l.font      = .systemFont(ofSize: 13, weight: .medium)
@@ -75,8 +73,7 @@ final class MainMealCell: UICollectionViewCell {
         iv.isUserInteractionEnabled = false
         return iv
     }()
-
-    /// Контейнер "счётчика"
+    
     private let counterContainer: UIView = {
         let v = UIView()
         v.backgroundColor   = .systemGray6
@@ -115,10 +112,10 @@ final class MainMealCell: UICollectionViewCell {
         st.layoutMargins = .init(top: 1, left: 6, bottom: 2, right: 1)
         return st
     }()
-
+    
     // MARK: – Model
     private var meal: Meal?
-
+    
     
     // MARK: – Init
     override init(frame: CGRect) {
@@ -130,18 +127,17 @@ final class MainMealCell: UICollectionViewCell {
         configureCounter()
     }
     required init?(coder: NSCoder) { fatalError() }
-
+    
     // MARK: – Reuse
     override func prepareForReuse() {
         super.prepareForReuse()
         [nameLabel, weightLabel, priceLabel, countLabel].forEach { $0.text = nil }
         imageView.image = nil
         meal = nil
-        // сбросить режим
         priceButton.isHidden        = false
         counterContainer.isHidden   = true
     }
-
+    
     // MARK: – Public API
     func configure(with meal: Meal) {
         self.meal = meal
@@ -150,17 +146,15 @@ final class MainMealCell: UICollectionViewCell {
         priceLabel.text   = "\(meal.price) ₽"
         if let imageURLString = meal.imageURL {
             imageView.sd_setImage(with: URL(string: imageURLString),
-                                placeholderImage: UIImage(named: "placeholder"))
+                                  placeholderImage: UIImage(named: "placeholder"))
         } else {
             imageView.image = UIImage(named: "placeholder")
         }
-
-        // скрывать вес, если название занимает две строки
+        
         nameLabel.preferredMaxLayoutWidth = contentView.bounds.width - 6
         layoutIfNeeded()
         weightLabel.isHidden = nameLabel.requiredLines > 1
-
-        // по количеству в корзине переключаем вид
+        
         let currentCount = CartService.shared
             .getAllItems()
             .first { $0.meal == meal }?
@@ -172,32 +166,31 @@ final class MainMealCell: UICollectionViewCell {
             showPriceButton()
         }
     }
-
+    
     // MARK: – UI‑helpers
-
+    
     private func configureImage() {
         contentView.addSubview(imageView)
         imageView.pinTop(to: contentView)
         imageView.pinHorizontal(to: contentView)
         imageView.pinHeight(to: imageView.widthAnchor)
     }
-
+    
     private func configureName() {
         contentView.addSubview(nameLabel)
         nameLabel.pinTop(to: imageView.bottomAnchor, 5)
         nameLabel.pinLeft(to: contentView, 5)
         nameLabel.pinRight(to: contentView, 5)
     }
-
+    
     private func configureWeight() {
         contentView.addSubview(weightLabel)
         weightLabel.pinTop(to: nameLabel.bottomAnchor, 4)
         weightLabel.pinLeft(to: contentView, 5)
         weightLabel.pinRight(to: contentView, 5)
     }
-
+    
     private func configurePriceButton() {
-        // собираем "капсулу"
         let h = UIStackView(arrangedSubviews: [priceLabel, plusIcon])
         h.axis      = .horizontal
         h.alignment = .center
@@ -206,41 +199,35 @@ final class MainMealCell: UICollectionViewCell {
         h.layoutMargins = .init(top: 0, left: 12, bottom: 0, right: 12)
         h.isUserInteractionEnabled = false
         priceButton.setHeight(mode: .equal, 30)
-
+        
         priceButton.addSubview(h)
         h.pin(to: priceButton)
-
+        
         contentView.addSubview(priceButton)
         priceButton.pinLeft(to: contentView)
         priceButton.pinBottom(to: contentView)
         priceButton.pinRight(to: contentView, 65)
-        // высота капсулы по intrinsic‑content
-
-        // action
         priceButton.addTarget(self,
                               action: #selector(plusTapped),
                               for: .touchUpInside)
     }
-
+    
     private func configureCounter() {
-        // собираем стек
         counterContainer.addSubview(countStack)
         countStack.pin(to: counterContainer)
-
+        
         contentView.addSubview(counterContainer)
         counterContainer.pinLeft(to: contentView)
         counterContainer.pinBottom(to: contentView)
-
-        // минус
+        
         minusButton.addTarget(self,
                               action: #selector(minusTapped),
                               for: .touchUpInside)
-        // + из счётчика
         plusCounterButton.addTarget(self,
                                     action: #selector(plusTapped),
                                     for: .touchUpInside)
     }
-
+    
     private func showCounter(count: Int) {
         countLabel.text = "\(count)"
         priceButton.isHidden      = true
@@ -250,7 +237,7 @@ final class MainMealCell: UICollectionViewCell {
                           options: [.transitionCrossDissolve, .allowUserInteraction],
                           animations: nil)
     }
-
+    
     private func showPriceButton() {
         priceButton.isHidden      = false
         counterContainer.isHidden = true
@@ -259,7 +246,7 @@ final class MainMealCell: UICollectionViewCell {
                           options: [.transitionCrossDissolve, .allowUserInteraction],
                           animations: nil)
     }
-
+    
     // MARK: – Actions
     
     func updateCounter(to count: Int) {
@@ -271,36 +258,31 @@ final class MainMealCell: UICollectionViewCell {
         priceButton.isHidden      = false
         counterContainer.isHidden = true
     }
-
+    
     @objc private func plusTapped() {
         guard let meal else { return }
         CartService.shared.add(meal: meal)
         let newCount = CartService.shared.getAllItems().first { $0.meal == meal }!.count
-
+        
         if counterContainer.isHidden {
-          // первый раз: сразу показать счётчик и анимировать переход
-          showCounter(count: newCount)
+            showCounter(count: newCount)
         } else {
-          // последующие клики: просто обновляем число без анимации
-          countLabel.text = "\(newCount)"
+            countLabel.text = "\(newCount)"
         }
     }
     @objc private func minusTapped() {
         guard let meal else { return }
         CartService.shared.remove(meal: meal)
         let newCount = CartService.shared.getAllItems().first { $0.meal == meal }?.count ?? 0
-
+        
         if newCount > 0 {
-          // просто обновляем
-          countLabel.text = "\(newCount)"
+            countLabel.text = "\(newCount)"
         } else {
-          // последний элемент — анимированно возвращаем кнопку «цена+»
-          showPriceButton()
+            showPriceButton()
         }
     }
 }
 
-// вычисление строк UILabel
 private extension UILabel {
     var requiredLines: Int {
         guard let txt = text, let fnt = font else { return 0 }
@@ -316,21 +298,17 @@ private extension UILabel {
 }
 
 final class HighlightButton: UIButton {
-
-    /// финальное «утопленное» состояние
     private let pressedTransform = CGAffineTransform(scaleX: 0.95, y: 0.95)
     private let pressedAlpha: CGFloat = 0.5
-
+    
     override var isHighlighted: Bool {
         didSet { animateHighlight(isHighlighted) }
     }
-
+    
     private func animateHighlight(_ pressed: Bool) {
-        // отменяем возможную предыдущую
         layer.removeAllAnimations()
-
+        
         if pressed {
-            // ➡️ «вдавливаемся» – чуть быстрее и без пружинки
             UIView.animate(withDuration: 0.25,
                            delay: 0,
                            options: [.curveEaseOut, .allowUserInteraction]) {
@@ -338,7 +316,6 @@ final class HighlightButton: UIButton {
                 self.transform = self.pressedTransform
             }
         } else {
-            // ⬅️ «отпрыгиваем» – чуть медленнее и c лёгкой пружинкой
             UIView.animate(withDuration: 0.45,
                            delay: 0,
                            usingSpringWithDamping: 0.85,
